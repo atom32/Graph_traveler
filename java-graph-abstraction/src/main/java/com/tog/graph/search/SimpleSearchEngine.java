@@ -40,31 +40,64 @@ public class SimpleSearchEngine implements SearchEngine {
     public List<ScoredEntity> searchEntities(String query, int topK) {
         logger.debug("Searching entities for query: {}", query);
         
-        List<Entity> allEntities = getAllEntities();
-        if (allEntities.isEmpty()) {
+        // 直接使用数据库搜索，而不是获取所有实体再过滤
+        List<Entity> candidateEntities = graphDatabase.searchEntities(query, Math.max(topK * 3, 100));
+        
+        if (candidateEntities.isEmpty()) {
+            logger.debug("No candidate entities found for query: {}", query);
             return new ArrayList<>();
+        }
+        
+        logger.debug("Found {} candidate entities for query: {}", candidateEntities.size(), query);
+        
+        // 检查 embedding 服务是否可用
+        if (!embeddingService.isAvailable()) {
+            logger.warn("Embedding service is not available, falling back to text-based search");
+            return searchEntitiesWithTextSimilarity(query, candidateEntities, topK);
         }
         
         // 获取查询的嵌入向量
         float[] queryEmbedding = embeddingService.getEmbedding(query);
         
-        // 计算与所有实体的相似度
+        // 如果查询向量是零向量，说明 embedding 失败，使用文本搜索
+        if (isZeroVector(queryEmbedding)) {
+            logger.warn("Query embedding failed, falling back to text-based search");
+            return searchEntitiesWithTextSimilarity(query, candidateEntities, topK);
+        }
+        
+        // 计算与候选实体的相似度
         List<ScoredEntity> scoredEntities = new ArrayList<>();
         
-        for (Entity entity : allEntities) {
+        for (Entity entity : candidateEntities) {
             try {
                 float[] entityEmbedding = getEntityEmbedding(entity);
+                
+                // 验证向量维度
+                if (entityEmbedding == null || entityEmbedding.length != queryEmbedding.length) {
+                    logger.debug("Skipping entity {} due to embedding dimension mismatch", entity.getId());
+                    // 使用文本相似度作为fallback
+                    double textSim = calculateTextSimilarity(query, entity.getName());
+                    if (textSim > 0.05) {
+                        scoredEntities.add(new ScoredEntity(entity, textSim));
+                    }
+                    continue;
+                }
+                
                 double similarity = embeddingService.cosineSimilarity(queryEmbedding, entityEmbedding);
                 
-                if (similarity > 0.1) { // 过滤低相似度结果
+                if (similarity > 0.05) { // 降低阈值，增加召回率
                     scoredEntities.add(new ScoredEntity(entity, similarity));
                 }
             } catch (Exception e) {
-                logger.warn("Failed to calculate similarity for entity: {}", entity.getId(), e);
+                logger.debug("Failed to calculate similarity for entity: {}, using text fallback", entity.getId());
                 // 使用文本相似度作为fallback
-                double textSim = calculateTextSimilarity(query, entity.getName());
-                if (textSim > 0.1) {
-                    scoredEntities.add(new ScoredEntity(entity, textSim));
+                try {
+                    double textSim = calculateTextSimilarity(query, entity.getName());
+                    if (textSim > 0.05) {
+                        scoredEntities.add(new ScoredEntity(entity, textSim));
+                    }
+                } catch (Exception fallbackError) {
+                    logger.debug("Text similarity fallback also failed for entity: {}", entity.getId());
                 }
             }
         }
@@ -154,15 +187,84 @@ public class SimpleSearchEngine implements SearchEngine {
         String cacheKey = entity.getId();
         
         if (entityEmbeddingCache.containsKey(cacheKey)) {
-            return entityEmbeddingCache.get(cacheKey);
+            float[] cached = entityEmbeddingCache.get(cacheKey);
+            // 验证缓存的向量维度
+            if (cached != null && cached.length == embeddingService.getDimension()) {
+                return cached;
+            } else {
+                // 移除无效的缓存
+                entityEmbeddingCache.remove(cacheKey);
+            }
         }
         
-        // 构建实体的文本表示
-        String entityText = buildEntityText(entity);
-        float[] embedding = embeddingService.getEmbedding(entityText);
+        try {
+            // 构建实体的文本表示
+            String entityText = buildEntityText(entity);
+            if (entityText == null || entityText.trim().isEmpty()) {
+                entityText = entity.getName() != null ? entity.getName() : entity.getId();
+            }
+            
+            float[] embedding = embeddingService.getEmbedding(entityText);
+            
+            // 验证返回的向量维度
+            if (embedding != null && embedding.length == embeddingService.getDimension()) {
+                entityEmbeddingCache.put(cacheKey, embedding);
+                return embedding;
+            } else {
+                logger.warn("Invalid embedding dimension for entity {}: expected {}, got {}", 
+                           entity.getId(), embeddingService.getDimension(), 
+                           embedding != null ? embedding.length : "null");
+                return createZeroVector();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to get embedding for entity {}: {}", entity.getId(), e.getMessage());
+            return createZeroVector();
+        }
+    }
+    
+    /**
+     * 创建零向量
+     */
+    private float[] createZeroVector() {
+        return new float[embeddingService.getDimension()];
+    }
+    
+    /**
+     * 检查是否为零向量
+     */
+    private boolean isZeroVector(float[] vector) {
+        if (vector == null) return true;
+        for (float value : vector) {
+            if (value != 0.0f) return false;
+        }
+        return true;
+    }
+    
+    /**
+     * 使用文本相似度进行实体搜索（降级策略）
+     */
+    private List<ScoredEntity> searchEntitiesWithTextSimilarity(String query, List<Entity> entities, int topK) {
+        logger.debug("Using text-based similarity search for {} entities", entities.size());
         
-        entityEmbeddingCache.put(cacheKey, embedding);
-        return embedding;
+        List<ScoredEntity> scoredEntities = new ArrayList<>();
+        
+        for (Entity entity : entities) {
+            try {
+                String entityText = buildEntityText(entity);
+                double similarity = calculateTextSimilarity(query, entityText);
+                
+                if (similarity > 0.05) { // 文本相似度的阈值可以更低
+                    scoredEntities.add(new ScoredEntity(entity, similarity));
+                }
+            } catch (Exception e) {
+                logger.debug("Failed to calculate text similarity for entity: {}", entity.getId());
+            }
+        }
+        
+        return scoredEntities.stream()
+                .sorted((a, b) -> Double.compare(b.getScore(), a.getScore()))
+                .limit(topK)
+                .collect(Collectors.toList());
     }
     
     /**
@@ -270,12 +372,8 @@ public class SimpleSearchEngine implements SearchEngine {
      * 获取所有实体（简化实现，实际应用中需要分页或索引）
      */
     private List<Entity> getAllEntities() {
-        // 这里应该从数据库中获取实体，为了demo简化处理
         try {
-            List<Map<String, Object>> results = graphDatabase.executeQuery(
-                "MATCH (n) RETURN n LIMIT 1000", new HashMap<>());
-            
-            // 简化实现：直接使用 Neo4j 数据库的 searchEntities 方法
+            // 使用空查询获取所有实体（现在Neo4j的searchEntities方法已经支持空查询）
             return graphDatabase.searchEntities("", 1000);
         } catch (Exception e) {
             logger.warn("Failed to get all entities, returning empty list", e);

@@ -26,7 +26,9 @@ public class OpenAIEmbeddingService implements EmbeddingService {
     private static final Logger logger = LoggerFactory.getLogger(OpenAIEmbeddingService.class);
     private static final String DEFAULT_API_URL = "https://api.openai.com/v1/embeddings";
     private static final String DEFAULT_MODEL = "text-embedding-ada-002";
-    private static final int EMBEDDING_DIMENSION = 1536; // ada-002的维度
+    private static final int DEFAULT_EMBEDDING_DIMENSION = 1536; // ada-002的维度
+    
+    private final int embeddingDimension;
     private static final int MAX_BATCH_SIZE = 100; // OpenAI的批量限制
     
     private final String apiKey;
@@ -52,6 +54,10 @@ public class OpenAIEmbeddingService implements EmbeddingService {
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClients.createDefault();
         this.executorService = Executors.newFixedThreadPool(4);
+        
+        // 根据模型确定维度
+        this.embeddingDimension = determineEmbeddingDimension(model);
+        
         this.embeddingCache = Collections.synchronizedMap(new LinkedHashMap<String, float[]>() {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) {
@@ -60,10 +66,37 @@ public class OpenAIEmbeddingService implements EmbeddingService {
         });
     }
     
+    /**
+     * 根据模型名称确定 embedding 维度
+     */
+    private int determineEmbeddingDimension(String model) {
+        if (model == null) {
+            return DEFAULT_EMBEDDING_DIMENSION;
+        }
+        
+        // 常见模型的维度映射
+        switch (model.toLowerCase()) {
+            case "text-embedding-ada-002":
+                return 1536;
+            case "baai/bge-large-zh-v1.5":
+            case "bge-large-zh-v1.5":
+                return 1024;  // BGE large 模型的维度
+            case "baai/bge-base-zh-v1.5":
+            case "bge-base-zh-v1.5":
+                return 768;   // BGE base 模型的维度
+            case "baai/bge-small-zh-v1.5":
+            case "bge-small-zh-v1.5":
+                return 512;   // BGE small 模型的维度
+            default:
+                logger.warn("Unknown model: {}, using default dimension: {}", model, DEFAULT_EMBEDDING_DIMENSION);
+                return DEFAULT_EMBEDDING_DIMENSION;
+        }
+    }
+    
     @Override
     public float[] getEmbedding(String text) {
         if (text == null || text.trim().isEmpty()) {
-            return new float[EMBEDDING_DIMENSION];
+            return createZeroVector();
         }
         
         // 检查缓存
@@ -73,19 +106,48 @@ public class OpenAIEmbeddingService implements EmbeddingService {
             return embeddingCache.get(cacheKey);
         }
         
-        try {
-            List<float[]> embeddings = requestEmbeddings(Collections.singletonList(text));
-            if (!embeddings.isEmpty()) {
-                float[] embedding = embeddings.get(0);
-                embeddingCache.put(cacheKey, embedding);
-                return embedding;
+        // 重试机制
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                List<float[]> embeddings = requestEmbeddings(Collections.singletonList(text));
+                if (!embeddings.isEmpty()) {
+                    float[] embedding = embeddings.get(0);
+                    // 验证向量维度
+                    if (embedding.length != embeddingDimension) {
+                        logger.warn("Unexpected embedding dimension: {} (expected {})", embedding.length, embeddingDimension);
+                        return createZeroVector();
+                    }
+                    embeddingCache.put(cacheKey, embedding);
+                    return embedding;
+                }
+            } catch (Exception e) {
+                logger.warn("Attempt {} failed to get embedding for text: {} - {}", attempt, 
+                           text.substring(0, Math.min(50, text.length())), e.getMessage());
+                
+                if (attempt < maxRetries) {
+                    try {
+                        // 指数退避
+                        Thread.sleep(1000 * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    logger.error("All attempts failed to get embedding for text: " + text, e);
+                }
             }
-        } catch (Exception e) {
-            logger.error("Failed to get embedding for text: " + text, e);
         }
         
         // 返回零向量作为fallback
-        return new float[EMBEDDING_DIMENSION];
+        return createZeroVector();
+    }
+    
+    /**
+     * 创建零向量，确保维度正确
+     */
+    private float[] createZeroVector() {
+        return new float[embeddingDimension];
     }
     
     @Override
@@ -102,7 +164,7 @@ public class OpenAIEmbeddingService implements EmbeddingService {
         for (int i = 0; i < texts.size(); i++) {
             String text = texts.get(i);
             if (text == null || text.trim().isEmpty()) {
-                results.add(new float[EMBEDDING_DIMENSION]);
+                results.add(createZeroVector());
             } else {
                 String cacheKey = text.trim();
                 if (embeddingCache.containsKey(cacheKey)) {
@@ -124,18 +186,23 @@ public class OpenAIEmbeddingService implements EmbeddingService {
                 for (int i = 0; i < uncachedIndices.size() && i < newEmbeddings.size(); i++) {
                     int originalIndex = uncachedIndices.get(i);
                     float[] embedding = newEmbeddings.get(i);
-                    results.set(originalIndex, embedding);
                     
-                    // 更新缓存
-                    String cacheKey = uncachedTexts.get(i).trim();
-                    embeddingCache.put(cacheKey, embedding);
+                    // 验证维度
+                    if (embedding != null && embedding.length == embeddingDimension) {
+                        results.set(originalIndex, embedding);
+                        // 更新缓存
+                        String cacheKey = uncachedTexts.get(i).trim();
+                        embeddingCache.put(cacheKey, embedding);
+                    } else {
+                        results.set(originalIndex, createZeroVector());
+                    }
                 }
             } catch (Exception e) {
                 logger.error("Failed to get batch embeddings", e);
                 // 用零向量填充失败的位置
                 for (int index : uncachedIndices) {
                     if (results.get(index) == null) {
-                        results.set(index, new float[EMBEDDING_DIMENSION]);
+                        results.set(index, createZeroVector());
                     }
                 }
             }
@@ -156,8 +223,15 @@ public class OpenAIEmbeddingService implements EmbeddingService {
     
     @Override
     public double cosineSimilarity(float[] vector1, float[] vector2) {
+        if (vector1 == null || vector2 == null) {
+            logger.warn("One or both vectors are null, returning 0.0 similarity");
+            return 0.0;
+        }
+        
         if (vector1.length != vector2.length) {
-            throw new IllegalArgumentException("Vector dimensions must match");
+            logger.warn("Vector dimensions don't match: {} vs {}, returning 0.0 similarity", 
+                       vector1.length, vector2.length);
+            return 0.0;
         }
         
         double dotProduct = 0.0;
@@ -174,7 +248,15 @@ public class OpenAIEmbeddingService implements EmbeddingService {
             return 0.0;
         }
         
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+        double similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+        
+        // 确保结果在合理范围内
+        if (Double.isNaN(similarity) || Double.isInfinite(similarity)) {
+            logger.warn("Invalid similarity result: {}, returning 0.0", similarity);
+            return 0.0;
+        }
+        
+        return similarity;
     }
     
     @Override
@@ -186,14 +268,14 @@ public class OpenAIEmbeddingService implements EmbeddingService {
     
     @Override
     public int getDimension() {
-        return EMBEDDING_DIMENSION;
+        return embeddingDimension;
     }
     
     @Override
     public boolean isAvailable() {
         try {
             float[] testEmbedding = getEmbedding("test");
-            return testEmbedding.length == EMBEDDING_DIMENSION;
+            return testEmbedding.length == embeddingDimension;
         } catch (Exception e) {
             logger.warn("Embedding service availability check failed", e);
             return false;

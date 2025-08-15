@@ -14,6 +14,8 @@ public class GraphSchema {
     private double averageDegree = 0.0;
     private List<String> indexSuggestions = new ArrayList<>();
     private long analysisTimestamp = System.currentTimeMillis();
+    private Map<String, Long> nodeTypeDistribution = new HashMap<>();
+    private Map<String, Long> relationshipTypeDistribution = new HashMap<>();
     
     // Getters and Setters
     public Collection<NodeTypeInfo> getNodeTypes() {
@@ -53,6 +55,16 @@ public class GraphSchema {
     public void setIndexSuggestions(List<String> indexSuggestions) { this.indexSuggestions = indexSuggestions; }
     
     public long getAnalysisTimestamp() { return analysisTimestamp; }
+    
+    public Map<String, Long> getNodeTypeDistribution() { return nodeTypeDistribution; }
+    public void setNodeTypeDistribution(Map<String, Long> nodeTypeDistribution) { 
+        this.nodeTypeDistribution = nodeTypeDistribution; 
+    }
+    
+    public Map<String, Long> getRelationshipTypeDistribution() { return relationshipTypeDistribution; }
+    public void setRelationshipTypeDistribution(Map<String, Long> relationshipTypeDistribution) { 
+        this.relationshipTypeDistribution = relationshipTypeDistribution; 
+    }
     
     /**
      * 获取Schema摘要信息

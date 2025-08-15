@@ -28,6 +28,11 @@ public class ResourceMonitor {
     private static final double HIGH_MEMORY_THRESHOLD = 0.85;  // 85% 内存使用率
     private static final int HIGH_THREAD_THRESHOLD = 200;      // 200个线程
     
+    // 警告开关配置
+    private static final boolean WARNING_ENABLED = Boolean.parseBoolean(
+        System.getProperty("resource.monitor.warning.enabled", "true")
+    );
+    
     public ResourceMonitor() {
         this.memoryBean = ManagementFactory.getMemoryMXBean();
         this.osBean = ManagementFactory.getOperatingSystemMXBean();
@@ -73,8 +78,8 @@ public class ResourceMonitor {
             currentMetrics.set(metrics);
             
             // 记录高负载警告
-            if (isHighLoad()) {
-                logger.warn("High system load detected: {}", metrics.getSummary());
+            if (WARNING_ENABLED && isHighLoad()) {
+                logger.debug("High system load detected: {}", metrics.getSummary());
             }
             
         } catch (Exception e) {

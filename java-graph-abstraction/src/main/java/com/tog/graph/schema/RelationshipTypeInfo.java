@@ -31,11 +31,20 @@ public class RelationshipTypeInfo {
         patterns.add(new RelationshipPattern(sourceLabel, targetLabel, count));
     }
     
+    private long totalCount = 0;
+    
     /**
      * 获取总的关系数量
      */
     public long getTotalCount() {
-        return patterns.stream().mapToLong(RelationshipPattern::getCount).sum();
+        return totalCount > 0 ? totalCount : patterns.stream().mapToLong(RelationshipPattern::getCount).sum();
+    }
+    
+    /**
+     * 设置总的关系数量
+     */
+    public void setTotalCount(long totalCount) {
+        this.totalCount = totalCount;
     }
     
     /**

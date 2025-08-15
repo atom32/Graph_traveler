@@ -1,0 +1,31 @@
+你是一个图数据库查询专家。根据以下数据库Schema信息，从用户问题中抽取相关的实体和概念。
+
+数据库Schema:
+{schema_context}
+
+用户问题: "{question}"
+
+请分析这个问题，并按以下格式返回JSON:
+{
+    "entities": [
+        {
+            "text": "抽取的实体文本",
+            "type": "推测的节点类型",
+            "confidence": 0.9,
+            "searchProperties": ["name", "title"]
+        }
+    ],
+    "relationships": [
+        {
+            "type": "相关的关系类型",
+            "confidence": 0.8
+        }
+    ],
+    "queryIntent": "问题的查询意图描述"
+}
+
+注意:
+1. 只抽取在Schema中存在的节点类型和关系类型
+2. 为每个实体推荐最佳的搜索属性
+3. 置信度范围0-1
+4. 如果不确定，可以提供多个候选

@@ -1,6 +1,7 @@
 package com.tog.graph.neo4j;
 
 import com.tog.graph.core.*;
+import com.tog.graph.schema.PropertyInfo;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.Result;
@@ -114,11 +115,21 @@ public class Neo4jGraphDatabase implements com.tog.graph.core.GraphDatabase {
     @Override
     public List<Entity> searchEntities(String query, int limit) {
         try (Session session = driver.session()) {
-            Result result = session.run(
-                "MATCH (n) WHERE n.name CONTAINS $query OR n.description CONTAINS $query " +
-                "RETURN n LIMIT $limit",
-                Map.of("query", query, "limit", limit)
-            );
+            String cypher;
+            Map<String, Object> params;
+            
+            if (query == null || query.trim().isEmpty()) {
+                // 如果查询为空，返回所有节点
+                cypher = "MATCH (n) RETURN n LIMIT $limit";
+                params = Map.of("limit", limit);
+            } else {
+                // 正常搜索
+                cypher = "MATCH (n) WHERE n.name CONTAINS $query OR n.description CONTAINS $query " +
+                        "RETURN n LIMIT $limit";
+                params = Map.of("query", query, "limit", limit);
+            }
+            
+            Result result = session.run(cypher, params);
             
             List<Entity> entities = new ArrayList<>();
             while (result.hasNext()) {
@@ -258,5 +269,325 @@ public class Neo4jGraphDatabase implements com.tog.graph.core.GraphDatabase {
         } catch (Exception e) {
             logger.error("Error executing batch queries", e);
         }
+    }
+    
+    // === 新增的接口方法实现 ===
+    
+    @Override
+    public List<Entity> searchEntitiesByProperty(String propertyName, String value, int limit) {
+        try (Session session = driver.session()) {
+            String cypher;
+            Map<String, Object> params;
+            
+            if (value == null || value.trim().isEmpty()) {
+                // 如果值为空，返回所有有该属性的节点
+                cypher = "MATCH (n) WHERE n." + propertyName + " IS NOT NULL RETURN n LIMIT $limit";
+                params = Map.of("limit", limit);
+            } else {
+                // 正常搜索
+                cypher = "MATCH (n) WHERE n." + propertyName + " IS NOT NULL AND " +
+                        "toLower(toString(n." + propertyName + ")) CONTAINS toLower($value) " +
+                        "RETURN n LIMIT $limit";
+                params = Map.of("value", value, "limit", limit);
+            }
+            
+            Result result = session.run(cypher, params);
+            
+            List<Entity> entities = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                Node node = record.get("n").asNode();
+                entities.add(nodeToEntity(node));
+            }
+            
+            return entities;
+        } catch (Exception e) {
+            logger.error("Error searching entities by property: " + propertyName, e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public List<String> getAllNodeTypes() {
+        try (Session session = driver.session()) {
+            // 尝试多种方法获取节点标签
+            List<String> labels = new ArrayList<>();
+            
+            try {
+                // 方法1: 使用 db.labels() 过程
+                Result result = session.run("CALL db.labels() YIELD label RETURN label");
+                while (result.hasNext()) {
+                    org.neo4j.driver.Record record = result.next();
+                    labels.add(record.get("label").asString());
+                }
+                
+                if (!labels.isEmpty()) {
+                    logger.debug("Found {} node types using db.labels()", labels.size());
+                    return labels;
+                }
+            } catch (Exception e) {
+                logger.debug("db.labels() failed, trying alternative method", e);
+            }
+            
+            try {
+                // 方法2: 直接查询节点标签
+                Result result = session.run("MATCH (n) RETURN DISTINCT labels(n) as labels LIMIT 1000");
+                Set<String> uniqueLabels = new HashSet<>();
+                
+                while (result.hasNext()) {
+                    org.neo4j.driver.Record record = result.next();
+                    List<Object> nodeLabels = record.get("labels").asList();
+                    for (Object label : nodeLabels) {
+                        uniqueLabels.add(label.toString());
+                    }
+                }
+                
+                labels.addAll(uniqueLabels);
+                logger.debug("Found {} node types using direct query", labels.size());
+                
+            } catch (Exception e) {
+                logger.error("Both methods failed to get node types", e);
+            }
+            
+            return labels;
+        } catch (Exception e) {
+            logger.error("Error getting all node types", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public List<String> getAllRelationshipTypes() {
+        try (Session session = driver.session()) {
+            Result result = session.run("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType");
+            
+            List<String> types = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                types.add(record.get("relationshipType").asString());
+            }
+            
+            return types;
+        } catch (Exception e) {
+            logger.error("Error getting all relationship types", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public List<String> getNodeProperties(String nodeType) {
+        try (Session session = driver.session()) {
+            Result result = session.run(
+                "MATCH (n:" + nodeType + ") WITH keys(n) as props UNWIND props as prop RETURN DISTINCT prop"
+            );
+            
+            List<String> properties = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                properties.add(record.get("prop").asString());
+            }
+            
+            return properties;
+        } catch (Exception e) {
+            logger.error("Error getting node properties for type: " + nodeType, e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public List<String> getRelationshipProperties(String relationshipType) {
+        try (Session session = driver.session()) {
+            Result result = session.run(
+                "MATCH ()-[r:" + relationshipType + "]->() WITH keys(r) as props UNWIND props as prop RETURN DISTINCT prop"
+            );
+            
+            List<String> properties = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                properties.add(record.get("prop").asString());
+            }
+            
+            return properties;
+        } catch (Exception e) {
+            logger.error("Error getting relationship properties for type: " + relationshipType, e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public long getNodeCount(String nodeType) {
+        try (Session session = driver.session()) {
+            Result result = session.run("MATCH (n:" + nodeType + ") RETURN count(n) as count");
+            
+            if (result.hasNext()) {
+                return result.next().get("count").asLong();
+            }
+            
+            return 0;
+        } catch (Exception e) {
+            logger.error("Error getting node count for type: " + nodeType, e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public long getRelationshipCount(String relationshipType) {
+        try (Session session = driver.session()) {
+            Result result = session.run("MATCH ()-[r:" + relationshipType + "]->() RETURN count(r) as count");
+            
+            if (result.hasNext()) {
+                return result.next().get("count").asLong();
+            }
+            
+            return 0;
+        } catch (Exception e) {
+            logger.error("Error getting relationship count for type: " + relationshipType, e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public long getTotalNodeCount() {
+        try (Session session = driver.session()) {
+            Result result = session.run("MATCH (n) RETURN count(n) as count");
+            
+            if (result.hasNext()) {
+                return result.next().get("count").asLong();
+            }
+            
+            return 0;
+        } catch (Exception e) {
+            logger.error("Error getting total node count", e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public long getTotalRelationshipCount() {
+        try (Session session = driver.session()) {
+            Result result = session.run("MATCH ()-[r]->() RETURN count(r) as count");
+            
+            if (result.hasNext()) {
+                return result.next().get("count").asLong();
+            }
+            
+            return 0;
+        } catch (Exception e) {
+            logger.error("Error getting total relationship count", e);
+            return 0;
+        }
+    }
+    
+    @Override
+    public Map<String, Long> getNodeTypeDistribution() {
+        Map<String, Long> distribution = new HashMap<>();
+        for (String nodeType : getAllNodeTypes()) {
+            distribution.put(nodeType, getNodeCount(nodeType));
+        }
+        return distribution;
+    }
+    
+    @Override
+    public Map<String, Long> getRelationshipTypeDistribution() {
+        Map<String, Long> distribution = new HashMap<>();
+        for (String relType : getAllRelationshipTypes()) {
+            distribution.put(relType, getRelationshipCount(relType));
+        }
+        return distribution;
+    }
+    
+    @Override
+    public List<PropertyInfo> analyzeNodeProperties(String nodeType) {
+        // TODO: 实现详细的属性分析
+        List<PropertyInfo> properties = new ArrayList<>();
+        for (String propName : getNodeProperties(nodeType)) {
+            PropertyInfo propInfo = new PropertyInfo(propName, 1);
+            properties.add(propInfo);
+        }
+        return properties;
+    }
+    
+    @Override
+    public List<PropertyInfo> analyzeRelationshipProperties(String relationshipType) {
+        // TODO: 实现详细的关系属性分析
+        List<PropertyInfo> properties = new ArrayList<>();
+        for (String propName : getRelationshipProperties(relationshipType)) {
+            PropertyInfo propInfo = new PropertyInfo(propName, 1);
+            properties.add(propInfo);
+        }
+        return properties;
+    }
+    
+    @Override
+    public List<String> getSamplePropertyValues(String nodeType, String property, int limit) {
+        try (Session session = driver.session()) {
+            Result result = session.run(
+                "MATCH (n:" + nodeType + ") WHERE n." + property + " IS NOT NULL " +
+                "RETURN n." + property + " as value LIMIT " + limit
+            );
+            
+            List<String> values = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                values.add(record.get("value").toString());
+            }
+            
+            return values;
+        } catch (Exception e) {
+            logger.error("Error getting sample property values", e);
+            return new ArrayList<>();
+        }
+    }
+    
+    @Override
+    public List<Entity> findNeighbors(String entityId, int maxDepth) {
+        // TODO: 实现邻居查找
+        return new ArrayList<>();
+    }
+    
+    @Override
+    public List<Path> findPaths(String sourceId, String targetId, int maxDepth) {
+        // TODO: 实现路径查找
+        return new ArrayList<>();
+    }
+    
+    @Override
+    public List<Entity> findEntitiesInRadius(String centerId, int radius) {
+        // TODO: 实现半径内实体查找
+        return new ArrayList<>();
+    }
+    
+    @Override
+    public String getDatabaseType() {
+        return "Neo4j";
+    }
+    
+    @Override
+    public String getVersion() {
+        try (Session session = driver.session()) {
+            Result result = session.run("CALL dbms.components() YIELD name, versions RETURN name, versions");
+            
+            if (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                return record.get("name").asString() + " " + record.get("versions").asList().get(0);
+            }
+            
+            return "Neo4j (version unknown)";
+        } catch (Exception e) {
+            logger.error("Error getting database version", e);
+            return "Neo4j (version unknown)";
+        }
+    }
+    
+    @Override
+    public Map<String, Object> getDatabaseInfo() {
+        Map<String, Object> info = new HashMap<>();
+        info.put("type", getDatabaseType());
+        info.put("version", getVersion());
+        info.put("totalNodes", getTotalNodeCount());
+        info.put("totalRelationships", getTotalRelationshipCount());
+        info.put("nodeTypes", getAllNodeTypes().size());
+        info.put("relationshipTypes", getAllRelationshipTypes().size());
+        return info;
     }
 }

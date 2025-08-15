@@ -24,6 +24,25 @@
             <version>5.15.0</version>
         </dependency>
         
+        <!-- Apache Jena for RDF support -->
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-core</artifactId>
+            <version>4.10.0</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-arq</artifactId>
+            <version>4.10.0</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-tdb</artifactId>
+            <version>4.10.0</version>
+        </dependency>
+        
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -84,7 +103,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.tog.graph.demo.GraphReasoningDemo</mainClass>
+                    <mainClass>com.tog.graph.demo.GraphTravelerDemo</mainClass>
                 </configuration>
             </plugin>
         </plugins>

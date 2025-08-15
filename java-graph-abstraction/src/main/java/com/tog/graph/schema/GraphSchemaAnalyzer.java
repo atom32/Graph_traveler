@@ -25,6 +25,24 @@ public class GraphSchemaAnalyzer {
     }
     
     /**
+     * 安全转义属性名，处理特殊字符和数字开头的情况
+     */
+    private String escapePropertyName(String propertyName) {
+        if (propertyName == null || propertyName.trim().isEmpty()) {
+            return propertyName;
+        }
+        
+        // 检查是否需要转义：包含特殊字符、以数字开头、或包含空格
+        if (propertyName.matches(".*[^a-zA-Z0-9_].*") || 
+            Character.isDigit(propertyName.charAt(0)) ||
+            propertyName.contains(" ")) {
+            return "`" + propertyName.replace("`", "``") + "`";
+        }
+        
+        return propertyName;
+    }
+    
+    /**
      * 分析图数据库的Schema
      */
     public GraphSchema analyzeSchema() {
@@ -36,32 +54,45 @@ public class GraphSchemaAnalyzer {
         }
         
         logger.info("Analyzing graph database schema...");
+        long startTime = System.currentTimeMillis();
         
         try {
             GraphSchema schema = new GraphSchema();
             
             // 1. 分析节点类型和属性
+            logger.info("Step 1/4: Analyzing node types...");
             analyzeNodeTypes(schema);
+            logger.info("Step 1/4 completed in {}ms", System.currentTimeMillis() - startTime);
             
             // 2. 分析关系类型和属性
+            logger.info("Step 2/4: Analyzing relationship types...");
+            long step2Start = System.currentTimeMillis();
             analyzeRelationshipTypes(schema);
+            logger.info("Step 2/4 completed in {}ms", System.currentTimeMillis() - step2Start);
             
             // 3. 分析图的统计信息
+            logger.info("Step 3/4: Analyzing graph statistics...");
+            long step3Start = System.currentTimeMillis();
             analyzeGraphStatistics(schema);
+            logger.info("Step 3/4 completed in {}ms", System.currentTimeMillis() - step3Start);
             
             // 4. 构建搜索索引建议
+            logger.info("Step 4/4: Building search index suggestions...");
+            long step4Start = System.currentTimeMillis();
             buildSearchIndexSuggestions(schema);
+            logger.info("Step 4/4 completed in {}ms", System.currentTimeMillis() - step4Start);
             
             cachedSchema = schema;
             lastAnalysisTime = System.currentTimeMillis();
             
-            logger.info("Schema analysis completed: {} node types, {} relationship types", 
-                       schema.getNodeTypes().size(), schema.getRelationshipTypes().size());
+            long totalTime = System.currentTimeMillis() - startTime;
+            logger.info("Schema analysis completed in {}ms: {} node types, {} relationship types", 
+                       totalTime, schema.getNodeTypes().size(), schema.getRelationshipTypes().size());
             
             return schema;
             
         } catch (Exception e) {
-            logger.error("Failed to analyze graph schema", e);
+            logger.error("Failed to analyze graph schema after {}ms", System.currentTimeMillis() - startTime, e);
             return createFallbackSchema();
         }
     }
@@ -71,50 +102,83 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzeNodeTypes(GraphSchema schema) {
         try {
+            logger.info("Starting node type analysis...");
+            
             // 获取所有节点标签 - 使用更兼容的方式
             List<Map<String, Object>> labelResults;
             try {
+                logger.debug("Trying db.labels()...");
                 labelResults = graphDatabase.executeQuery(
-                    "CALL db.labels() YIELD label RETURN label", new HashMap<>());
+                    "CALL db.labels() YIELD label RETURN label LIMIT 20", new HashMap<>());
+                logger.debug("Found {} labels using db.labels()", labelResults.size());
             } catch (Exception e) {
                 // 如果db.labels()不可用，使用备用方法
                 logger.debug("db.labels() not available, using fallback method");
                 labelResults = graphDatabase.executeQuery(
-                    "MATCH (n) RETURN DISTINCT labels(n) as labelList", new HashMap<>());
+                    "MATCH (n) RETURN DISTINCT labels(n) as labelList LIMIT 20", new HashMap<>());
                 // 需要处理labelList格式
                 List<Map<String, Object>> processedResults = new ArrayList<>();
                 for (Map<String, Object> result : labelResults) {
                     @SuppressWarnings("unchecked")
                     List<String> labelList = (List<String>) result.get("labelList");
-                    for (String label : labelList) {
-                        Map<String, Object> labelResult = new HashMap<>();
-                        labelResult.put("label", label);
-                        processedResults.add(labelResult);
+                    if (labelList != null) {
+                        for (String label : labelList) {
+                            if (label != null && !label.trim().isEmpty()) {
+                                Map<String, Object> labelResult = new HashMap<>();
+                                labelResult.put("label", label);
+                                processedResults.add(labelResult);
+                            }
+                        }
                     }
                 }
                 labelResults = processedResults;
+                logger.debug("Found {} labels using fallback method", labelResults.size());
             }
             
+            int processedCount = 0;
             for (Map<String, Object> result : labelResults) {
                 String label = (String) result.get("label");
-                NodeTypeInfo nodeType = new NodeTypeInfo(label);
-                
-                // 分析该类型节点的属性
-                analyzeNodeProperties(nodeType);
-                
-                // 统计节点数量
-                List<Map<String, Object>> countResults = graphDatabase.executeQuery(
-                    "MATCH (n:" + label + ") RETURN count(n) as count", new HashMap<>());
-                
-                if (!countResults.isEmpty()) {
-                    nodeType.setCount(((Number) countResults.get(0).get("count")).longValue());
+                if (label == null || label.trim().isEmpty()) {
+                    continue;
                 }
                 
-                schema.addNodeType(nodeType);
+                logger.debug("Analyzing node type: {}", label);
+                NodeTypeInfo nodeType = new NodeTypeInfo(label);
+                
+                try {
+                    // 统计节点数量（先做这个，因为比较快）
+                    List<Map<String, Object>> countResults = graphDatabase.executeQuery(
+                        "MATCH (n:`" + label + "`) RETURN count(n) as count", new HashMap<>());
+                    
+                    if (!countResults.isEmpty()) {
+                        long count = ((Number) countResults.get(0).get("count")).longValue();
+                        nodeType.setCount(count);
+                        logger.debug("Node type {} has {} nodes", label, count);
+                        
+                        // 只分析有节点的类型的属性
+                        if (count > 0) {
+                            analyzeNodeProperties(nodeType);
+                        }
+                    }
+                    
+                    schema.addNodeType(nodeType);
+                    processedCount++;
+                    
+                } catch (Exception e) {
+                    logger.warn("Failed to analyze node type: {}", label, e);
+                    // 即使失败也添加基本信息
+                    schema.addNodeType(nodeType);
+                }
             }
             
+            logger.info("Completed node type analysis: {} types processed", processedCount);
+            
         } catch (Exception e) {
-            logger.warn("Failed to analyze node types", e);
+            logger.error("Failed to analyze node types", e);
+            // 添加一个基本的fallback节点类型
+            NodeTypeInfo fallbackType = new NodeTypeInfo("Unknown");
+            fallbackType.setCount(0);
+            schema.addNodeType(fallbackType);
         }
     }
     
@@ -123,29 +187,49 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzeNodeProperties(NodeTypeInfo nodeType) {
         try {
+            logger.debug("Analyzing properties for node type: {}", nodeType.getLabel());
+            
             String query = String.format(
-                "MATCH (n:%s) WITH keys(n) as props " +
+                "MATCH (n:`%s`) WITH keys(n) as props " +
                 "UNWIND props as prop " +
                 "RETURN prop, count(*) as frequency " +
-                "ORDER BY frequency DESC LIMIT 50", 
+                "ORDER BY frequency DESC LIMIT 20", 
                 nodeType.getLabel());
             
             List<Map<String, Object>> results = graphDatabase.executeQuery(query, new HashMap<>());
+            logger.debug("Found {} properties for node type: {}", results.size(), nodeType.getLabel());
             
+            int propCount = 0;
             for (Map<String, Object> result : results) {
                 String property = (String) result.get("prop");
-                long frequency = ((Number) result.get("frequency")).longValue();
+                if (property == null || property.trim().isEmpty()) {
+                    continue;
+                }
                 
+                long frequency = ((Number) result.get("frequency")).longValue();
                 PropertyInfo propInfo = new PropertyInfo(property, frequency);
                 
-                // 分析属性值的类型和分布
-                analyzePropertyValues(nodeType.getLabel(), property, propInfo);
+                try {
+                    // 只对高频属性进行详细分析，避免性能问题
+                    if (frequency > nodeType.getCount() * 0.1 || propCount < 5) {
+                        analyzePropertyValues(nodeType.getLabel(), property, propInfo);
+                    } else {
+                        // 对低频属性只做基本类型推断
+                        propInfo.addValueType("STRING", frequency);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Failed to analyze property values for {}:{}", nodeType.getLabel(), property, e);
+                    propInfo.addValueType("UNKNOWN", frequency);
+                }
                 
                 nodeType.addProperty(propInfo);
+                propCount++;
             }
             
+            logger.debug("Analyzed {} properties for node type: {}", propCount, nodeType.getLabel());
+            
         } catch (Exception e) {
-            logger.warn("Failed to analyze properties for node type: " + nodeType.getLabel(), e);
+            logger.warn("Failed to analyze properties for node type: {}", nodeType.getLabel(), e);
         }
     }
     
@@ -154,37 +238,148 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzePropertyValues(String nodeLabel, String property, PropertyInfo propInfo) {
         try {
-            // 使用标准Neo4j函数进行类型推断，不依赖APOC
-            String query = String.format(
-                "MATCH (n:%s) WHERE n.%s IS NOT NULL " +
-                "WITH n.%s as value " +
-                "RETURN " +
-                "CASE " +
-                "  WHEN value =~ '^-?[0-9]+$' THEN 'INTEGER' " +
-                "  WHEN value =~ '^-?[0-9]*\\.[0-9]+$' THEN 'FLOAT' " +
-                "  WHEN toLower(toString(value)) IN ['true', 'false'] THEN 'BOOLEAN' " +
-                "  ELSE 'STRING' " +
-                "END as type, count(*) as count " +
-                "ORDER BY count DESC LIMIT 10", 
-                nodeLabel, property, property);
+            logger.debug("Analyzing property values for {}:{}", nodeLabel, property);
             
-            List<Map<String, Object>> results = graphDatabase.executeQuery(query, new HashMap<>());
+            // 安全转义属性名
+            String escapedProperty = escapePropertyName(property);
             
-            for (Map<String, Object> result : results) {
-                String type = (String) result.get("type");
-                long count = ((Number) result.get("count")).longValue();
-                propInfo.addValueType(type, count);
+            // 使用最简单安全的方法获取样本值来判断类型
+            String sampleQuery = String.format(
+                "MATCH (n:`%s`) WHERE n.%s IS NOT NULL " +
+                "RETURN n.%s as value LIMIT 3", 
+                nodeLabel, escapedProperty, escapedProperty);
+            
+            List<Map<String, Object>> sampleResults = graphDatabase.executeQuery(sampleQuery, new HashMap<>());
+            
+            if (sampleResults.isEmpty()) {
+                propInfo.addValueType("NULL", 1);
+                return;
             }
             
-            // 如果是字符串类型，分析一些样本值
-            if (propInfo.getPrimaryType().equals("STRING")) {
-                analyzeSampleValues(nodeLabel, property, propInfo);
+            // 基于样本值推断类型
+            Map<String, Integer> typeCount = new HashMap<>();
+            List<String> samples = new ArrayList<>();
+            
+            for (Map<String, Object> result : sampleResults) {
+                Object value = result.get("value");
+                String type = inferValueType(value);
+                typeCount.put(type, typeCount.getOrDefault(type, 0) + 1);
+                
+                // 收集样本值
+                if (samples.size() < 3) {
+                    samples.add(formatSampleValue(value));
+                }
+            }
+            
+            // 添加类型信息
+            for (Map.Entry<String, Integer> entry : typeCount.entrySet()) {
+                propInfo.addValueType(entry.getKey(), entry.getValue());
+            }
+            
+            // 设置样本值
+            propInfo.setSampleValues(samples);
+            
+            logger.debug("Property {}:{} analyzed - types: {}", nodeLabel, property, typeCount.keySet());
+            
+        } catch (Exception e) {
+            logger.debug("Failed to analyze property values for {}:{}, using fallback", nodeLabel, property, e);
+            propInfo.addValueType("STRING", 1);
+        }
+    }
+    
+    /**
+     * 推断值的类型
+     */
+    private String inferValueType(Object value) {
+        if (value == null) {
+            return "NULL";
+        } else if (value instanceof Boolean) {
+            return "BOOLEAN";
+        } else if (value instanceof Integer || value instanceof Long) {
+            return "INTEGER";
+        } else if (value instanceof Float || value instanceof Double) {
+            return "FLOAT";
+        } else if (value instanceof List) {
+            return "ARRAY";
+        } else if (value instanceof String) {
+            String strValue = (String) value;
+            if (strValue.matches("^-?[0-9]+$")) {
+                return "INTEGER";
+            } else if (strValue.matches("^-?[0-9]*\\.[0-9]+$")) {
+                return "FLOAT";
+            } else if ("true".equalsIgnoreCase(strValue) || "false".equalsIgnoreCase(strValue)) {
+                return "BOOLEAN";
+            } else {
+                return "STRING";
+            }
+        } else {
+            return "OBJECT";
+        }
+    }
+    
+    /**
+     * 格式化样本值用于显示
+     */
+    private String formatSampleValue(Object value) {
+        if (value == null) {
+            return "null";
+        } else if (value instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> listValue = (List<Object>) value;
+            if (listValue.size() <= 3) {
+                return listValue.toString();
+            } else {
+                return "[" + listValue.get(0) + ", " + listValue.get(1) + ", ...]";
+            }
+        } else {
+            String strValue = String.valueOf(value);
+            return strValue.length() > 50 ? strValue.substring(0, 47) + "..." : strValue;
+        }
+    }
+    
+    /**
+     * 分析未知类型的属性
+     */
+    private void analyzeUnknownPropertyType(String nodeLabel, String property, PropertyInfo propInfo, long count) {
+        try {
+            // 获取一个样本值来判断类型
+            String sampleQuery = String.format(
+                "MATCH (n:%s) WHERE n.%s IS NOT NULL " +
+                "RETURN n.%s as value LIMIT 1", 
+                nodeLabel, property, property);
+            
+            List<Map<String, Object>> sampleResults = graphDatabase.executeQuery(sampleQuery, new HashMap<>());
+            
+            if (!sampleResults.isEmpty()) {
+                Object sampleValue = sampleResults.get(0).get("value");
+                
+                if (sampleValue instanceof List) {
+                    propInfo.addValueType("ARRAY", count);
+                } else if (sampleValue instanceof Number) {
+                    if (sampleValue instanceof Integer || sampleValue instanceof Long) {
+                        propInfo.addValueType("INTEGER", count);
+                    } else {
+                        propInfo.addValueType("FLOAT", count);
+                    }
+                } else if (sampleValue instanceof String) {
+                    String strValue = (String) sampleValue;
+                    if (strValue.matches("^-?[0-9]+$")) {
+                        propInfo.addValueType("INTEGER", count);
+                    } else if (strValue.matches("^-?[0-9]*\\.[0-9]+$")) {
+                        propInfo.addValueType("FLOAT", count);
+                    } else {
+                        propInfo.addValueType("STRING", count);
+                    }
+                } else {
+                    propInfo.addValueType("STRING", count);
+                }
+            } else {
+                propInfo.addValueType("STRING", count);
             }
             
         } catch (Exception e) {
-            logger.debug("Failed to analyze property values for {}:{}", nodeLabel, property);
-            // 使用简单的类型推断作为fallback
-            propInfo.addValueType("STRING", 1);
+            logger.debug("Failed to analyze unknown property type for {}:{}", nodeLabel, property, e);
+            propInfo.addValueType("STRING", count);
         }
     }
     
@@ -200,14 +395,30 @@ public class GraphSchemaAnalyzer {
             
             List<Map<String, Object>> results = graphDatabase.executeQuery(query, new HashMap<>());
             
-            List<String> samples = results.stream()
-                .map(r -> String.valueOf(r.get("value")))
-                .collect(Collectors.toList());
+            List<String> samples = new ArrayList<>();
+            for (Map<String, Object> result : results) {
+                Object value = result.get("value");
+                if (value != null) {
+                    try {
+                        // 处理数组类型
+                        if (value instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> listValue = (List<Object>) value;
+                            samples.add(listValue.toString()); // 将数组转换为字符串表示
+                        } else {
+                            samples.add(String.valueOf(value));
+                        }
+                    } catch (Exception e) {
+                        // 如果转换失败，使用安全的字符串表示
+                        samples.add("[Complex Value]");
+                    }
+                }
+            }
             
             propInfo.setSampleValues(samples);
             
         } catch (Exception e) {
-            logger.debug("Failed to get sample values for {}:{}", nodeLabel, property);
+            logger.debug("Failed to get sample values for {}:{}", nodeLabel, property, e);
         }
     }
     
@@ -216,35 +427,51 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzeRelationshipTypes(GraphSchema schema) {
         try {
+            logger.info("Starting relationship type analysis...");
+            
             // 获取所有关系类型 - 使用更兼容的方式
             List<Map<String, Object>> typeResults;
             try {
+                logger.debug("Trying db.relationshipTypes()...");
                 typeResults = graphDatabase.executeQuery(
-                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", 
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType LIMIT 10", 
                     new HashMap<>());
+                logger.debug("Found {} relationship types using db.relationshipTypes()", typeResults.size());
             } catch (Exception e) {
                 // 如果db.relationshipTypes()不可用，使用备用方法
                 logger.debug("db.relationshipTypes() not available, using fallback method");
                 typeResults = graphDatabase.executeQuery(
-                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType LIMIT 100", 
+                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType LIMIT 10", 
                     new HashMap<>());
+                logger.debug("Found {} relationship types using fallback method", typeResults.size());
             }
             
+            int processedCount = 0;
             for (Map<String, Object> result : typeResults) {
                 String relType = (String) result.get("relationshipType");
+                if (relType == null || relType.trim().isEmpty()) {
+                    continue;
+                }
+                
+                logger.debug("Analyzing relationship type: {}", relType);
                 RelationshipTypeInfo relationshipType = new RelationshipTypeInfo(relType);
                 
-                // 分析关系的连接模式
-                analyzeRelationshipPatterns(relationshipType);
-                
-                // 分析关系属性
-                analyzeRelationshipProperties(relationshipType);
-                
-                schema.addRelationshipType(relationshipType);
+                try {
+                    // 只分析连接模式，跳过属性分析以提高性能
+                    analyzeRelationshipPatterns(relationshipType);
+                    schema.addRelationshipType(relationshipType);
+                    processedCount++;
+                } catch (Exception e) {
+                    logger.warn("Failed to analyze relationship type: {}", relType, e);
+                    // 即使失败也添加基本信息
+                    schema.addRelationshipType(relationshipType);
+                }
             }
             
+            logger.info("Completed relationship type analysis: {} types processed", processedCount);
+            
         } catch (Exception e) {
-            logger.warn("Failed to analyze relationship types", e);
+            logger.error("Failed to analyze relationship types", e);
         }
     }
     
@@ -253,13 +480,16 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzeRelationshipPatterns(RelationshipTypeInfo relationshipType) {
         try {
+            logger.debug("Analyzing patterns for relationship type: {}", relationshipType.getType());
+            
             String query = String.format(
-                "MATCH (a)-[r:%s]->(b) " +
+                "MATCH (a)-[r:`%s`]->(b) " +
                 "RETURN labels(a) as sourceLabels, labels(b) as targetLabels, count(*) as count " +
-                "ORDER BY count DESC LIMIT 20", 
+                "ORDER BY count DESC LIMIT 5", 
                 relationshipType.getType());
             
             List<Map<String, Object>> results = graphDatabase.executeQuery(query, new HashMap<>());
+            logger.debug("Found {} patterns for relationship type: {}", results.size(), relationshipType.getType());
             
             for (Map<String, Object> result : results) {
                 @SuppressWarnings("unchecked")
@@ -268,14 +498,14 @@ public class GraphSchemaAnalyzer {
                 List<String> targetLabels = (List<String>) result.get("targetLabels");
                 long count = ((Number) result.get("count")).longValue();
                 
-                String sourceLabel = sourceLabels.isEmpty() ? "Unknown" : sourceLabels.get(0);
-                String targetLabel = targetLabels.isEmpty() ? "Unknown" : targetLabels.get(0);
+                String sourceLabel = (sourceLabels != null && !sourceLabels.isEmpty()) ? sourceLabels.get(0) : "Unknown";
+                String targetLabel = (targetLabels != null && !targetLabels.isEmpty()) ? targetLabels.get(0) : "Unknown";
                 
                 relationshipType.addPattern(sourceLabel, targetLabel, count);
             }
             
         } catch (Exception e) {
-            logger.warn("Failed to analyze relationship patterns for: " + relationshipType.getType(), e);
+            logger.warn("Failed to analyze relationship patterns for: {}", relationshipType.getType(), e);
         }
     }
     
@@ -311,30 +541,61 @@ public class GraphSchemaAnalyzer {
      */
     private void analyzeGraphStatistics(GraphSchema schema) {
         try {
-            // 总节点数
-            List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
-                "MATCH (n) RETURN count(n) as totalNodes", new HashMap<>());
+            logger.debug("Analyzing graph statistics...");
             
-            if (!nodeCountResults.isEmpty()) {
-                schema.setTotalNodes(((Number) nodeCountResults.get(0).get("totalNodes")).longValue());
+            // 使用已有的节点类型统计来计算总节点数，避免全图扫描
+            long totalNodes = schema.getNodeTypes().stream()
+                .mapToLong(NodeTypeInfo::getCount)
+                .sum();
+            
+            if (totalNodes > 0) {
+                schema.setTotalNodes(totalNodes);
+                logger.debug("Total nodes (from node types): {}", totalNodes);
+            } else {
+                // 如果节点类型统计失败，尝试快速计算
+                try {
+                    List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
+                        "MATCH (n) RETURN count(n) as totalNodes LIMIT 1", new HashMap<>());
+                    
+                    if (!nodeCountResults.isEmpty()) {
+                        totalNodes = ((Number) nodeCountResults.get(0).get("totalNodes")).longValue();
+                        schema.setTotalNodes(totalNodes);
+                        logger.debug("Total nodes (direct count): {}", totalNodes);
+                    }
+                } catch (Exception e) {
+                    logger.debug("Failed to get total node count", e);
+                    schema.setTotalNodes(0);
+                }
             }
             
-            // 总关系数
-            List<Map<String, Object>> relCountResults = graphDatabase.executeQuery(
-                "MATCH ()-[r]->() RETURN count(r) as totalRelationships", new HashMap<>());
-            
-            if (!relCountResults.isEmpty()) {
-                schema.setTotalRelationships(((Number) relCountResults.get(0).get("totalRelationships")).longValue());
-            }
-            
-            // 平均度数
-            if (schema.getTotalNodes() > 0) {
-                double avgDegree = (double) (schema.getTotalRelationships() * 2) / schema.getTotalNodes();
-                schema.setAverageDegree(avgDegree);
+            // 简化关系统计 - 只做快速估算
+            try {
+                List<Map<String, Object>> relCountResults = graphDatabase.executeQuery(
+                    "MATCH ()-[r]->() RETURN count(r) as totalRelationships LIMIT 1", new HashMap<>());
+                
+                if (!relCountResults.isEmpty()) {
+                    long totalRels = ((Number) relCountResults.get(0).get("totalRelationships")).longValue();
+                    schema.setTotalRelationships(totalRels);
+                    logger.debug("Total relationships: {}", totalRels);
+                    
+                    // 计算平均度数
+                    if (totalNodes > 0) {
+                        double avgDegree = (double) (totalRels * 2) / totalNodes;
+                        schema.setAverageDegree(avgDegree);
+                        logger.debug("Average degree: {}", avgDegree);
+                    }
+                }
+            } catch (Exception e) {
+                logger.debug("Failed to get relationship statistics", e);
+                schema.setTotalRelationships(0);
+                schema.setAverageDegree(0.0);
             }
             
         } catch (Exception e) {
             logger.warn("Failed to analyze graph statistics", e);
+            schema.setTotalNodes(0);
+            schema.setTotalRelationships(0);
+            schema.setAverageDegree(0.0);
         }
     }
     

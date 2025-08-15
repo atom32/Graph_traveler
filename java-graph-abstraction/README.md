@@ -1,6 +1,46 @@
-# Java Graph Database Abstraction Layer
+# 🌐 Graph Traveler
 
-基于ToG-2项目设计的Java图数据库抽象层，支持Neo4j和其他图数据库，具备异步并行推理能力。
+智能图推理与知识发现系统 - 基于ToG-2项目设计的现代化图数据库抽象层，支持多种图数据库和智能推理能力。
+
+## 🚀 快速启动
+
+### 运行统一演示程序
+
+```bash
+# 赋予执行权限
+chmod +x run.sh
+
+# 运行主程序
+./run.sh
+
+# 初始化测试数据
+./run.sh init
+
+# 仅编译项目
+./run.sh compile
+
+# 查看帮助
+./run.sh help
+```
+
+### 或者使用Maven直接运行
+
+```bash
+# 编译并运行
+mvn clean compile exec:java
+
+# 初始化数据
+mvn exec:java -Dexec.mainClass="com.tog.graph.demo.DataInitializer"
+```
+
+## 📋 功能特性
+
+- 🔍 **智能实体搜索** - 基于语义向量的实体发现
+- 🤔 **标准推理查询** - 基于图结构的逻辑推理
+- 🧠 **智能推理查询** - 基于Schema的自动查询规划
+- 📊 **Schema分析** - 自动数据库结构分析和优化建议
+- 🔧 **数据库中立** - 支持Neo4j、RDF等多种图数据库
+- ⚡ **高性能** - 支持异步并行推理
 
 ## 项目结构
 

@@ -63,7 +63,13 @@ public class AdvancedGraphSearchEngine implements SearchEngine {
         try {
             // 1. 确保Schema已分析
             if (cachedSchema == null) {
-                cachedSchema = schemaAnalyzer.analyzeSchema();
+                try {
+                    cachedSchema = schemaAnalyzer.analyzeSchema();
+                    logger.debug("Schema analysis completed for advanced search");
+                } catch (Exception e) {
+                    logger.warn("Schema analysis failed, using fallback search", e);
+                    return fallbackEngine.searchEntities(query, topK);
+                }
             }
             
             // 2. 基于Schema推荐搜索策略
@@ -153,20 +159,13 @@ public class AdvancedGraphSearchEngine implements SearchEngine {
         
         for (String property : searchProperties) {
             try {
-                String cypherQuery = String.format(
-                    "MATCH (n:%s) WHERE n.%s IS NOT NULL AND toLower(toString(n.%s)) CONTAINS toLower($query) " +
-                    "RETURN n LIMIT $limit", 
-                    nodeType, property, property);
+                // 使用数据库的现有方法搜索实体
+                List<Entity> entities = graphDatabase.searchEntitiesByProperty(property, query, limit);
                 
-                Map<String, Object> params = new HashMap<>();
-                params.put("query", query);
-                params.put("limit", limit);
-                
-                List<Map<String, Object>> queryResults = graphDatabase.executeQuery(cypherQuery, params);
-                
-                for (Map<String, Object> result : queryResults) {
-                    Entity entity = extractEntityFromResult(result);
-                    if (entity != null) {
+                for (Entity entity : entities) {
+                    // 检查实体类型是否匹配
+                    if (nodeType.equals(entity.getType()) || 
+                        (entity.getProperties() != null && entity.getProperties().containsValue(nodeType))) {
                         double score = calculatePropertyMatchScore(query, entity, property);
                         results.add(new ScoredEntity(entity, score));
                     }
@@ -214,11 +213,77 @@ public class AdvancedGraphSearchEngine implements SearchEngine {
      * 从查询结果中提取实体
      */
     private Entity extractEntityFromResult(Map<String, Object> result) {
-        // 简化实现：假设结果中有一个名为 'n' 的节点
-        // 实际实现需要更复杂的解析逻辑
         try {
-            // 这里需要根据实际的Neo4j驱动返回格式来解析
-            // 暂时返回null，让fallback引擎处理
+            // 查找结果中的节点对象
+            Object nodeObj = result.get("n");
+            if (nodeObj == null) {
+                // 尝试其他可能的键名
+                for (String key : result.keySet()) {
+                    Object value = result.get(key);
+                    if (value != null && value.toString().contains("Node")) {
+                        nodeObj = value;
+                        break;
+                    }
+                }
+            }
+            
+            if (nodeObj != null) {
+                // 由于我们无法直接访问Neo4j的Node类型，我们通过反射来获取属性
+                try {
+                    // 尝试获取节点的ID
+                    String nodeId = null;
+                    String nodeName = null;
+                    String nodeType = null;
+                    Map<String, Object> properties = new HashMap<>();
+                    
+                    // 使用反射获取节点信息
+                    Class<?> nodeClass = nodeObj.getClass();
+                    
+                    // 获取节点ID
+                    try {
+                        Object idObj = nodeClass.getMethod("id").invoke(nodeObj);
+                        nodeId = String.valueOf(idObj);
+                    } catch (Exception e) {
+                        logger.debug("Failed to get node id", e);
+                    }
+                    
+                    // 获取节点属性
+                    try {
+                        Object propsObj = nodeClass.getMethod("asMap").invoke(nodeObj);
+                        if (propsObj instanceof Map) {
+                            properties = (Map<String, Object>) propsObj;
+                            nodeName = (String) properties.get("name");
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Failed to get node properties", e);
+                    }
+                    
+                    // 获取节点标签
+                    try {
+                        Object labelsObj = nodeClass.getMethod("labels").invoke(nodeObj);
+                        if (labelsObj instanceof Iterable) {
+                            Iterator<?> labelIter = ((Iterable<?>) labelsObj).iterator();
+                            if (labelIter.hasNext()) {
+                                nodeType = labelIter.next().toString();
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Failed to get node labels", e);
+                    }
+                    
+                    // 创建Entity对象
+                    if (nodeId != null) {
+                        Entity entity = new Entity(nodeId, nodeName != null ? nodeName : nodeId);
+                        entity.setType(nodeType);
+                        entity.setProperties(properties);
+                        return entity;
+                    }
+                    
+                } catch (Exception e) {
+                    logger.debug("Failed to extract node information via reflection", e);
+                }
+            }
+            
             return null;
         } catch (Exception e) {
             logger.debug("Failed to extract entity from result", e);
