@@ -172,4 +172,18 @@ public class GraphReasoningService {
             schemaAwareReasoner != null
         );
     }
+    
+    /**
+     * 获取图数据库实例（用于智能体系统）
+     */
+    public GraphDatabase getGraphDatabase() {
+        return database;
+    }
+    
+    /**
+     * 获取搜索引擎实例（用于智能体系统）
+     */
+    public SearchEngine getSearchEngine() {
+        return searchEngine;
+    }
 }

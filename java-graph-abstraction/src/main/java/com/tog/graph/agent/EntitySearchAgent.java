@@ -82,22 +82,85 @@ public class EntitySearchAgent implements Agent {
     private AgentResult performEntitySearch(String query, Map<String, Object> context) {
         int limit = (Integer) context.getOrDefault("limit", 10);
         
-        List<ScoredEntity> results = searchEngine.searchEntities(query, limit);
+        // 多策略搜索：先尝试精确搜索，再尝试模糊搜索
+        List<ScoredEntity> results = new ArrayList<>();
+        
+        // 策略1: 直接搜索
+        List<ScoredEntity> directResults = searchEngine.searchEntities(query, limit);
+        results.addAll(directResults);
+        
+        // 策略2: 如果结果不够，尝试部分匹配
+        if (results.size() < 3 && query.length() > 1) {
+            for (int i = query.length() - 1; i >= 2; i--) {
+                String partialQuery = query.substring(0, i);
+                List<ScoredEntity> partialResults = searchEngine.searchEntities(partialQuery, limit);
+                
+                // 过滤重复结果
+                for (ScoredEntity partial : partialResults) {
+                    boolean isDuplicate = results.stream()
+                            .anyMatch(existing -> existing.getEntity().getId().equals(partial.getEntity().getId()));
+                    if (!isDuplicate) {
+                        // 降低部分匹配的分数
+                        ScoredEntity adjustedEntity = new ScoredEntity(partial.getEntity(), partial.getScore() * 0.8);
+                        results.add(adjustedEntity);
+                    }
+                }
+                
+                if (results.size() >= limit) break;
+            }
+        }
+        
+        // 策略3: 如果还是没找到，尝试单字搜索（针对中文）
+        if (results.isEmpty() && query.length() >= 2) {
+            for (char c : query.toCharArray()) {
+                String charQuery = String.valueOf(c);
+                List<ScoredEntity> charResults = searchEngine.searchEntities(charQuery, 5);
+                
+                for (ScoredEntity charResult : charResults) {
+                    if (charResult.getEntity().getName().contains(query)) {
+                        // 如果实体名称包含原查询，给高分
+                        ScoredEntity boostedEntity = new ScoredEntity(charResult.getEntity(), 0.9);
+                        results.add(boostedEntity);
+                    } else {
+                        // 否则给低分
+                        ScoredEntity lowScoreEntity = new ScoredEntity(charResult.getEntity(), 0.3);
+                        results.add(lowScoreEntity);
+                    }
+                }
+                
+                if (results.size() >= limit) break;
+            }
+        }
+        
+        // 去重并排序
+        Map<String, ScoredEntity> uniqueResults = new HashMap<>();
+        for (ScoredEntity scored : results) {
+            String key = scored.getEntity().getId();
+            if (!uniqueResults.containsKey(key) || 
+                uniqueResults.get(key).getScore() < scored.getScore()) {
+                uniqueResults.put(key, scored);
+            }
+        }
+        
+        List<ScoredEntity> finalResults = new ArrayList<>(uniqueResults.values());
+        finalResults.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+        finalResults = finalResults.subList(0, Math.min(limit, finalResults.size()));
         
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("query", query);
-        metadata.put("found_count", results.size());
-        metadata.put("entities", results);
+        metadata.put("found_count", finalResults.size());
+        metadata.put("entities", finalResults);
+        metadata.put("search_strategies_used", 3);
         
-        if (results.isEmpty()) {
+        if (finalResults.isEmpty()) {
             return AgentResult.success("未找到相关实体", metadata);
         }
         
         StringBuilder result = new StringBuilder();
-        result.append(String.format("找到 %d 个相关实体:\n", results.size()));
+        result.append(String.format("找到 %d 个相关实体:\n", finalResults.size()));
         
-        for (int i = 0; i < Math.min(5, results.size()); i++) {
-            ScoredEntity scored = results.get(i);
+        for (int i = 0; i < Math.min(5, finalResults.size()); i++) {
+            ScoredEntity scored = finalResults.get(i);
             result.append(String.format("%d. %s (相似度: %.3f)\n", 
                          i + 1, scored.getEntity().getName(), scored.getScore()));
         }

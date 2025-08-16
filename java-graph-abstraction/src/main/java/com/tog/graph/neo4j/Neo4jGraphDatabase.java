@@ -541,20 +541,116 @@ public class Neo4jGraphDatabase implements com.tog.graph.core.GraphDatabase {
     
     @Override
     public List<Entity> findNeighbors(String entityId, int maxDepth) {
-        // TODO: 实现邻居查找
-        return new ArrayList<>();
+        try (Session session = driver.session()) {
+            String cypher = String.format("""
+                MATCH (source)-[*1..%d]-(neighbor)
+                WHERE id(source) = $entityId
+                RETURN DISTINCT neighbor
+                LIMIT 100
+                """, maxDepth);
+            
+            Result result = session.run(cypher, Map.of("entityId", Long.parseLong(entityId)));
+            
+            List<Entity> neighbors = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                Node node = record.get("neighbor").asNode();
+                neighbors.add(nodeToEntity(node));
+            }
+            
+            return neighbors;
+        } catch (Exception e) {
+            logger.error("Error finding neighbors for entity: {}", entityId, e);
+            return new ArrayList<>();
+        }
     }
     
     @Override
     public List<Path> findPaths(String sourceId, String targetId, int maxDepth) {
-        // TODO: 实现路径查找
-        return new ArrayList<>();
+        try (Session session = driver.session()) {
+            String cypher = String.format("""
+                MATCH path = (source)-[*1..%d]-(target)
+                WHERE id(source) = $sourceId AND id(target) = $targetId
+                RETURN path
+                ORDER BY length(path)
+                LIMIT 10
+                """, maxDepth);
+            
+            Result result = session.run(cypher, 
+                Map.of("sourceId", Long.parseLong(sourceId), 
+                       "targetId", Long.parseLong(targetId)));
+            
+            List<Path> paths = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                org.neo4j.driver.types.Path neo4jPath = record.get("path").asPath();
+                
+                Path customPath = convertNeo4jPath(neo4jPath);
+                if (customPath != null) {
+                    paths.add(customPath);
+                }
+            }
+            
+            return paths;
+        } catch (Exception e) {
+            logger.error("Error finding paths from {} to {}: {}", sourceId, targetId, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+    
+    private Path convertNeo4jPath(org.neo4j.driver.types.Path neo4jPath) {
+        try {
+            List<Entity> entities = new ArrayList<>();
+            List<Relation> relations = new ArrayList<>();
+            
+            // 转换节点
+            for (org.neo4j.driver.types.Node node : neo4jPath.nodes()) {
+                entities.add(nodeToEntity(node));
+            }
+            
+            // 转换关系
+            for (org.neo4j.driver.types.Relationship rel : neo4jPath.relationships()) {
+                relations.add(relationshipToRelation(rel, null));
+            }
+            
+            return new Path(entities, relations);
+        } catch (Exception e) {
+            logger.error("Error converting Neo4j path", e);
+            return null;
+        }
     }
     
     @Override
     public List<Entity> findEntitiesInRadius(String centerId, int radius) {
-        // TODO: 实现半径内实体查找
-        return new ArrayList<>();
+        try (Session session = driver.session()) {
+            String cypher = String.format("""
+                MATCH (center)-[*1..%d]-(entity)
+                WHERE id(center) = $centerId
+                RETURN DISTINCT entity, length(shortestPath((center)-[*]-(entity))) as distance
+                ORDER BY distance
+                LIMIT 200
+                """, radius);
+            
+            Result result = session.run(cypher, Map.of("centerId", Long.parseLong(centerId)));
+            
+            List<Entity> entitiesInRadius = new ArrayList<>();
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                Node node = record.get("entity").asNode();
+                Entity entity = nodeToEntity(node);
+                
+                // 添加距离信息到实体属性中
+                int distance = record.get("distance").asInt();
+                entity.addProperty("distance_from_center", distance);
+                
+                entitiesInRadius.add(entity);
+            }
+            
+            return entitiesInRadius;
+        } catch (Exception e) {
+            logger.error("Error finding entities in radius for center: {}", centerId, e);
+            return new ArrayList<>();
+        }
     }
     
     @Override

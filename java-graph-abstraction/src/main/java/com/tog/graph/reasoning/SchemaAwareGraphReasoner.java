@@ -152,45 +152,38 @@ public class SchemaAwareGraphReasoner {
         try {
             logger.debug("Parsing LLM response: {}", response);
             
-            // 简化的JSON解析 - 寻找关键信息
-            // 由于没有JSON库，我们使用简单的字符串匹配和正则表达式
+            // 智能实体抽取 - 结合LLM响应和问题分析
+            logger.debug("LLM Response: {}", response);
+            logger.debug("Original Question: {}", question);
             
-            // 通用的实体抽取逻辑 - 不依赖于特定的Schema
-            // 智能识别问题中的实体
+            // 智能实体抽取 - 结合多种策略
             
-            // 1. 特殊实体识别
-            if (response.contains("汤液经法") || response.contains("汤液") || 
-                question.contains("汤液经法") || question.contains("汤液")) {
+            // 1. 尝试解析LLM的JSON响应
+            List<String> llmEntities = extractEntitiesFromLLMResponse(response);
+            for (String entity : llmEntities) {
+                result.addEntity(entity, "ANY", 0.9, Arrays.asList("name", "全称", "title"));
+                logger.debug("Added LLM extracted entity: {}", entity);
+            }
+            
+            // 2. 基于问题的实体识别
+            List<String> questionEntities = extractEntitiesFromQuestion(question);
+            for (String entity : questionEntities) {
+                // 根据实体特征推测类型
+                String entityType = inferEntityType(entity, schema);
+                double confidence = calculateEntityConfidence(entity, question);
                 
-                result.addEntity("汤液经法", "ANY", 0.9, Arrays.asList("name", "全称", "title"));
-                result.addEntity("《汤液经法》", "ANY", 0.9, Arrays.asList("name", "全称", "title"));
-                logger.debug("Added 汤液经法 entities for search");
+                result.addEntity(entity, entityType, confidence, 
+                    getOptimalSearchProperties(entity, entityType, schema));
+                logger.debug("Added question entity: {} (type: {}, confidence: {:.3f})", 
+                           entity, entityType, confidence);
             }
             
-            // 2. 人名识别 - 中文人名通常是2-3个字
-            String[] potentialNames = extractChineseNames(question);
-            for (String name : potentialNames) {
-                result.addEntity(name, "Person", 0.8, Arrays.asList("name", "姓名", "人名"));
-                logger.debug("Added potential person name: {}", name);
-            }
+            // 3. 设置查询意图
+            String intent = inferQueryIntent(question);
+            result.setQueryIntent(intent);
+            logger.debug("Inferred query intent: {}", intent);
             
-            // 3. 关系词识别
-            if (question.contains("关系") || question.contains("联系") || question.contains("和")) {
-                result.setQueryIntent("分析实体间的关系");
-            }
-            
-            // 4. 通用关键词提取
-            String[] keywords = question.split("[\\s，。！？、的和与]+");
-            for (String keyword : keywords) {
-                if (keyword.length() > 1 && 
-                    !keyword.matches(".*[是在了为中关系什么怎么样].*") &&
-                    !isCommonWord(keyword)) {
-                    result.addEntity(keyword, "ANY", 0.6, Arrays.asList("name", "全称", "title", "description"));
-                    logger.debug("Added keyword entity: {}", keyword);
-                }
-            }
-            
-            // 添加相关的关系类型
+            // 添加相关的关系类型 这里是硬编码，不好
             result.addRelationship("主治", 0.8);
             result.addRelationship("组成", 0.8);
             result.addRelationship("治疗方法", 0.7);
@@ -230,7 +223,7 @@ public class SchemaAwareGraphReasoner {
     }
     
     /**
-     * 判断是否为常见词汇
+     * 判断是否为常见词汇 这部分应该有词典
      */
     private boolean isCommonWord(String word) {
         String[] commonWords = {
@@ -557,7 +550,7 @@ public class SchemaAwareGraphReasoner {
     }
     
     /**
-     * 获取关系类型的权重
+     * 获取关系类型的权重 这里是硬编码，不好
      */
     private double getRelationTypeWeight(String relationType) {
         // 根据关系类型的重要性分配权重

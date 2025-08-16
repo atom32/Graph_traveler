@@ -1,0 +1,363 @@
+
+- Total Nodes: 1,963
+- Total Relationships: 18,236
+- Average Degree: 18.58
+- Node Types: 20
+- Relationship Types: 10
+
+Node Types:
+  - 症状 (1,165 nodes, 20 properties)
+  - 功效 (6 nodes, 3 properties)
+  - test (0 nodes, 0 properties)
+  - 方剂 (244 nodes, 20 properties)
+  - 生理阶段 (3 nodes, 7 properties)
+  - 化学物质 (1 nodes, 3 properties)
+  - 生理现象 (3 nodes, 4 properties)
+  - 疾病 (159 nodes, 20 properties)
+  - 中药 (51 nodes, 10 properties)
+  - 因素 (3 nodes, 4 properties)
+  - 治疗方法 (149 nodes, 20 properties)
+  - 病症 (35 nodes, 5 properties)
+  - 解剖部位 (3 nodes, 3 properties)
+  - 基因 (3 nodes, 3 properties)
+  - 激素 (16 nodes, 10 properties)
+  - 受体 (2 nodes, 2 properties)
+  - 治法 (1 nodes, 3 properties)
+  - 器官 (21 nodes, 13 properties)
+  - 证型 (5 nodes, 2 properties)
+  - Person (93 nodes, 20 properties)
+
+Relationship Types:
+  - 对应 (5 patterns)
+  - 组成 (5 patterns)
+  - 禁忌 (1 patterns)
+  - 影响 (5 patterns)
+  - 表现 (2 patterns)
+  - 主治 (5 patterns)
+  - 因果关系 (5 patterns)
+  - 具备 (2 patterns)
+  - 治疗方法 (5 patterns)
+  - 分泌 (3 patterns)
+
+11:46:01.715 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.SimpleSearchEngine -- SimpleSearchEngine initialized
+11:46:01.715 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.AdvancedGraphSearchEngine -- AdvancedGraphSearchEngine initialized successfully
+11:46:01.715 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.EntitySearchAgent -- EntitySearchAgent initialized successfully
+11:46:01.716 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Agent entity-search-agent initialized successfully
+11:46:01.716 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- All agents initialization completed
+11:46:01.716 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.demo.GraphTravelerDemo -- Multi-agent system initialized successfully
+╔══════════════════════════════════════╗
+║        🌐 Graph Traveler Demo        ║
+║     智能图推理与知识发现系统          ║
+╠══════════════════════════════════════╣
+║  🚀 展示最新AI推理技术               ║
+║  🧠 Schema感知 + 多智能体协作        ║
+║  🔍 多跳推理 + 可解释AI              ║
+╚══════════════════════════════════════╝
+
+💡 建议先试试「智能推理查询」体验最新技术！
+
+🔄 正在初始化服务...
+11:46:01.716 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.service.GraphReasoningService -- Initializing graph reasoning service...
+11:46:01.716 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.AdvancedGraphSearchEngine -- Initializing AdvancedGraphSearchEngine...
+11:46:01.718 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.AdvancedGraphSearchEngine -- Schema analysis completed: Graph Schema Summary:
+- Total Nodes: 1,963
+- Total Relationships: 18,236
+- Average Degree: 18.58
+- Node Types: 20
+- Relationship Types: 10
+
+Node Types:
+  - 症状 (1,165 nodes, 20 properties)
+  - 功效 (6 nodes, 3 properties)
+  - test (0 nodes, 0 properties)
+  - 方剂 (244 nodes, 20 properties)
+  - 生理阶段 (3 nodes, 7 properties)
+  - 化学物质 (1 nodes, 3 properties)
+  - 生理现象 (3 nodes, 4 properties)
+  - 疾病 (159 nodes, 20 properties)
+  - 中药 (51 nodes, 10 properties)
+  - 因素 (3 nodes, 4 properties)
+  - 治疗方法 (149 nodes, 20 properties)
+  - 病症 (35 nodes, 5 properties)
+  - 解剖部位 (3 nodes, 3 properties)
+  - 基因 (3 nodes, 3 properties)
+  - 激素 (16 nodes, 10 properties)
+  - 受体 (2 nodes, 2 properties)
+  - 治法 (1 nodes, 3 properties)
+  - 器官 (21 nodes, 13 properties)
+  - 证型 (5 nodes, 2 properties)
+  - Person (93 nodes, 20 properties)
+
+Relationship Types:
+  - 对应 (5 patterns)
+  - 组成 (5 patterns)
+  - 禁忌 (1 patterns)
+  - 影响 (5 patterns)
+  - 表现 (2 patterns)
+  - 主治 (5 patterns)
+  - 因果关系 (5 patterns)
+  - 具备 (2 patterns)
+  - 治疗方法 (5 patterns)
+  - 分泌 (3 patterns)
+
+11:46:01.718 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.SimpleSearchEngine -- SimpleSearchEngine initialized
+11:46:01.718 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.search.AdvancedGraphSearchEngine -- AdvancedGraphSearchEngine initialized successfully
+11:46:01.718 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.service.GraphReasoningService -- Graph reasoning service initialized successfully
+✅ 所有服务初始化完成
+
+┌─────────────────────────────────────┐
+│        🌐 Graph Traveler Demo       │
+│         智能图推理技术展示           │
+├─────────────────────────────────────┤
+│ 🚀 核心功能                         │
+│ 1. 🧠 智能推理查询 (基于Schema)     │
+│ 2. 🤖 多智能体协作查询 (NEW!)       │
+├─────────────────────────────────────┤
+│ 🔧 辅助功能                         │
+│ 3. 🔍 实体搜索                      │
+│ 4. 📊 Schema分析                    │
+│ 5. ⚙️  高级选项...                  │
+├─────────────────────────────────────┤
+│ 0. 👋 退出程序                      │
+└─────────────────────────────────────┘
+请选择操作 (0-5): 2
+
+🤖 多智能体协作查询
+─────────────────────
+选择查询类型:
+1. 实体搜索 (EntitySearchAgent)
+2. 关系分析 (RelationshipAnalysisAgent)
+3. 智能协作查询 (多智能体协作)
+请选择 (1-3): 张机与吴 3
+
+🤝 智能协作推理
+─────────────────
+请输入查询问题: 张机与吴普的关系？
+� 智能协体调器分析问题中...
+🎯 检测到关系查询，启动专门的关系分析流程...
+🔍 识别到实体: 张机, 吴普
+🤖 EntitySearchAgent 并行搜索实体中...
+11:46:35.904 [ForkJoinPool.commonPool-worker-1] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent entity-search-agent for task: entity_search
+11:46:35.904 [ForkJoinPool.commonPool-worker-3] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent entity-search-agent for task: entity_search
+11:46:35.905 [ForkJoinPool.commonPool-worker-1] INFO com.tog.graph.agent.EntitySearchAgent -- EntitySearchAgent executing task: entity_search - 吴普
+✅ 找到实体: 吴普
+🕸️ RelationshipAnalysisAgent 分析实体关系中...
+11:46:36.970 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent relationship-analysis-agent for task: relationship_analysis
+11:46:36.971 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.RelationshipAnalysisAgent -- RelationshipAnalysisAgent executing task: relationship_analysis - 分析实体关系
+📊 关系分析结果:
+实体 '吴普' 的关系分析:
+总关系数: 2
+关系类型数: 2
+
+关系类型: 师法 (1个)
+  - 汤液经法
+
+关系类型: 师从 (1个)
+  - 汤液经法
+
+
+⚠️ 只找到部分实体，尝试直接搜索问题...
+11:46:37.000 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent entity-search-agent for task: entity_search
+11:46:37.000 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.EntitySearchAgent -- EntitySearchAgent executing task: entity_search - 张机与吴普的关系？
+🔍 直接搜索结果:
+找到 9 个相关实体:
+1. 张机 (相似度: 0.636)
+2. 张机 (相似度: 0.634)
+3. 南阳张机 (相似度: 0.599)
+4. 张机 (相似度: 0.549)
+5. 张机 (相似度: 0.549)
+
+11:46:37.975 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent relationship-analysis-agent for task: relationship_analysis
+11:46:37.975 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.RelationshipAnalysisAgent -- RelationshipAnalysisAgent executing task: relationship_analysis - 分析实体关系
+📊 张机 的关系分析:
+实体 '张机' 的关系分析:
+总关系数: 1
+关系类型数: 1
+
+关系类型: Authored (1个)
+  - 伤寒论
+
+
+11:46:37.990 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent relationship-analysis-agent for task: relationship_analysis
+11:46:37.990 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.RelationshipAnalysisAgent -- RelationshipAnalysisAgent executing task: relationship_analysis - 分析实体关系
+📊 张机 的关系分析:
+实体 '张机' 的关系分析:
+总关系数: 1
+关系类型数: 1
+
+关系类型: 师从于 (1个)
+  - 汤液经法
+
+
+11:46:38.001 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.MultiAgentCoordinator -- Selected agent relationship-analysis-agent for task: relationship_analysis
+11:46:38.002 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.agent.RelationshipAnalysisAgent -- RelationshipAnalysisAgent executing task: relationship_analysis - 分析实体关系
+📊 南阳张机 的关系分析:
+实体 '南阳张机' 的关系分析:
+总关系数: 1
+关系类型数: 1
+
+关系类型: 撰写 (1个)
+  - 伤寒论
+
+
+
+🎉 智能协作推理完成！
+
+按回车键继续...
+
+┌─────────────────────────────────────┐
+│        🌐 Graph Traveler Demo       │
+│         智能图推理技术展示           │
+├─────────────────────────────────────┤
+│ 🚀 核心功能                         │
+│ 1. 🧠 智能推理查询 (基于Schema)     │
+│ 2. 🤖 多智能体协作查询 (NEW!)       │
+├─────────────────────────────────────┤
+│ 🔧 辅助功能                         │
+│ 3. 🔍 实体搜索                      │
+│ 4. 📊 Schema分析                    │
+│ 5. ⚙️  高级选项...                  │
+├─────────────────────────────────────┤
+│ 0. 👋 退出程序                      │
+└─────────────────────────────────────┘
+请选择操作 (0-5): 1
+
+🧠 智能推理查询
+─────────────────
+请输入推理问题: 张机与吴普的关系？
+🧠 启动智能推理引擎...
+📊 分析问题结构，制定查询策略...
+11:47:44.453 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.reasoning.SchemaAwareGraphReasoner -- Starting schema-aware reasoning for: 张机与吴普的关系？
+11:48:19.702 [com.tog.graph.demo.GraphTravelerDemo.main()] INFO com.tog.graph.reasoning.SchemaAwareGraphReasoner -- Schema-aware reasoning completed successfully
+
+📋 智能推理结果:
+─────────────────────
+❓ 问题: 张机与吴普的关系？
+💡 答案: 根据提供的信息，张机（即张仲景）与吴普均为古代著名医家，但未找到直接描述二人关系的明确信息。以下是基于现有实体的分析：
+
+- **张机**：被多次标识为“名医”“医家”“历史人物”，身份为“当代名贤”，著有《伤寒论》，是中医史上重要人物，以辨证论治和方剂学贡献著称。
+- **吴普**：同样被标识为“名医”“医家”，身份亦为“当代名贤”，以“愍救疾苦，造福含灵”为事迹，表明其致力于医学实践与济世救人。
+
+尽管二人同属医学领域且被尊为名贤，但现有数据中**未显示张机与吴普之间存在直接的师承、著作或互动关系**。历史上，吴普是华佗的弟子，而张机与华佗同时代但学派不同，因此二人可能并无直接关联。
+
+**结论**：根据现有信息，张机与吴普均为古代著名医家，但无证据表明他们之间存在直接关系。
+
+🔍 支持证据:
+  1. [Depth 0, Score 0.795] 张机
+  2. [Depth 0, Score 0.793] 张机
+  3. [Depth 0, Score 0.749] 南阳张机
+  4. [Depth 0, Score 0.687] 张机
+  5. [Depth 0, Score 0.686] 张机
+  6. [Depth 0, Score 0.672] 张机
+  7. [Depth 0, Score 0.652] 南阳张机
+  8. [Depth 0, Score 0.624] 张机
+  9. [Depth 0, Score 0.597] 张机
+  10. [Depth 0, Score 0.764] 吴普
+  11. [Depth 0, Score 0.764] 吴普
+  12. [Depth 0, Score 0.672] 吴普
+  13. [Depth 0, Score 0.639] 吴普
+  14. [Depth 0, Score 0.795] 张机
+  15. [Depth 0, Score 0.793] 张机
+  16. [Depth 0, Score 0.749] 南阳张机
+  17. [Depth 0, Score 0.687] 张机
+  18. [Depth 0, Score 0.686] 张机
+  19. [Depth 0, Score 0.672] 张机
+  20. [Depth 0, Score 0.652] 南阳张机
+  21. [Depth 0, Score 0.624] 张机
+  22. [Depth 0, Score 0.597] 张机
+  23. [Depth 0, Score 0.764] 吴普
+  24. [Depth 0, Score 0.764] 吴普
+  25. [Depth 0, Score 0.672] 吴普
+  26. [Depth 0, Score 0.639] 吴普
+  27. [Depth 1, Score 0.400] 张机 -[Authored]-> 伤寒论
+  28. [Depth 1, Score 0.400] 张机 -[师从于]-> 汤液经法
+  29. [Depth 1, Score 0.400] 南阳张机 -[撰写]-> 伤寒论
+  30. [Depth 2, Score 0.320] 汤液经法 -[师从于]-> 范将军
+  31. [Depth 2, Score 0.320] 伤寒论 -[依据]-> 二旦六神大小汤
+  32. [Depth 3, Score 0.256] 二旦六神大小汤 -[记载]-> 弘景
+  33. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  34. [Connection Path]
+  35. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  36. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  37. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  38. [Connection Path]
+  39. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  40. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  41. [Indirect Connection] 南阳张机 与 南阳张机 通过 0 跳连接
+  42. [Connection Path]
+  43. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  44. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  45. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  46. [Connection Path]
+  47. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  48. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  49. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  50. [Connection Path]
+  51. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  52. [Connection Path]
+  53. [Indirect Connection] 南阳张机 与 张机 通过 2 跳连接
+  54. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机
+  55. [Indirect Connection] 南阳张机 与 吴普 通过 4 跳连接
+  56. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机 -> 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  57. [Indirect Connection] 南阳张机 与 南阳张机 通过 0 跳连接
+  58. [Connection Path]
+  59. [Indirect Connection] 南阳张机 与 张机 通过 2 跳连接
+  60. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机
+  61. [Indirect Connection] 南阳张机 与 吴普 通过 4 跳连接
+  62. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机 -> 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  63. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  64. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  65. [Indirect Connection] 张机 与 南阳张机 通过 2 跳连接
+  66. [Connection Path] 张机 -> 伤寒论 -> 伤寒论 -> 南阳张机
+  67. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  68. [Connection Path]
+  69. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  70. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  71. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  72. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  73. [Indirect Connection] 张机 与 张机 通过 0 跳连接
+  74. [Connection Path]
+  75. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  76. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  77. [Indirect Connection] 吴普 与 张机 通过 2 跳连接
+  78. [Connection Path] 吴普 -> 汤液经法 -> 汤液经法 -> 张机
+  79. [Indirect Connection] 吴普 与 吴普 通过 0 跳连接
+  80. [Connection Path]
+  81. [Indirect Connection] 吴普 与 张机 通过 2 跳连接
+  82. [Connection Path] 吴普 -> 汤液经法 -> 汤液经法 -> 张机
+  83. [Indirect Connection] 吴普 与 吴普 通过 0 跳连接
+  84. [Connection Path]
+  85. [Indirect Connection] 吴普 与 张机 通过 2 跳连接
+  86. [Connection Path] 吴普 -> 汤液经法 -> 汤液经法 -> 张机
+  87. [Indirect Connection] 吴普 与 吴普 通过 0 跳连接
+  88. [Connection Path]
+  89. [Indirect Connection] 吴普 与 南阳张机 通过 4 跳连接
+  90. [Connection Path] 吴普 -> 《汤液经法》 -> 《汤液经法》 -> 张机 -> 张机 -> 伤寒论 -> 伤寒论 -> 南阳张机
+  91. [Indirect Connection] 吴普 与 张机 通过 2 跳连接
+  92. [Connection Path] 吴普 -> 《汤液经法》 -> 《汤液经法》 -> 张机
+  93. [Indirect Connection] 吴普 与 吴普 通过 0 跳连接
+  94. [Connection Path]
+  95. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  96. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  97. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  98. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  99. [Indirect Connection] 南阳张机 与 张机 通过 2 跳连接
+  100. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机
+  101. [Indirect Connection] 南阳张机 与 吴普 通过 4 跳连接
+  102. [Connection Path] 南阳张机 -> 伤寒论 -> 伤寒论 -> 张机 -> 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  103. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  104. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+  105. [Indirect Connection] 张机 与 吴普 通过 2 跳连接
+  106. [Connection Path] 张机 -> 汤液经法 -> 汤液经法 -> 吴普
+
+🛤️ 推理路径:
+  步骤 1: Depth 0: 张机 -[Authored]-> 伤寒论 (score: 0.400)
+  步骤 2: Depth 0: 张机 -[师从于]-> 汤液经法 (score: 0.400)
+  步骤 3: Depth 0: 南阳张机 -[撰写]-> 伤寒论 (score: 0.400)
+  步骤 4: Depth 0: 汤液经法 -[师从于]-> 范将军 (score: 0.320)
+  步骤 5: Depth 0: 伤寒论 -[依据]-> 二旦六神大小汤 (score: 0.320)
+  步骤 6: Depth 0: 二旦六神大小汤 -[记载]-> 弘景 (score: 0.256)
+
+💡 此查询使用了基于Schema的智能实体抽取和查询规划技术
+
+按回车键继续...
