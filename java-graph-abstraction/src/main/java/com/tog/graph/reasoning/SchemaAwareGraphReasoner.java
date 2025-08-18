@@ -179,19 +179,33 @@ public class SchemaAwareGraphReasoner {
                            entity, entityType, confidence);
             }
             
-            // 3. 设置查询意图
-            String intent = inferQueryIntent(question);
-            result.setQueryIntent(intent);
-            logger.debug("Inferred query intent: {}", intent);
-            
-            // 添加相关的关系类型 这里是硬编码，不好
-            result.addRelationship("主治", 0.8);
-            result.addRelationship("组成", 0.8);
-            result.addRelationship("治疗方法", 0.7);
-            result.addRelationship("因果关系", 0.7);
-            
-            // 设置查询意图
-            result.setQueryIntent("查找汤液经法相关的医学典籍信息");
+            // 3. 从 LLM 响应中提取关系类型
+            List<String> relationshipTypes = extractRelationshipTypesFromLLMResponse(response);
+            for (String relType : relationshipTypes) {
+                result.addRelationship(relType, 0.8);
+                logger.debug("Added relationship type from LLM: {}", relType);
+            }
+
+            // 如果没有从 LLM 获取到关系类型，则基于问题和Schema推断
+            if (relationshipTypes.isEmpty()) {
+                List<String> inferredRelationships = inferRelationshipTypes(question, schema);
+                for (String relType : inferredRelationships) {
+                    result.addRelationship(relType, 0.7);
+                    logger.debug("Added inferred relationship type: {}", relType);
+                }
+            }
+
+            // 4. 从 LLM 响应中提取查询意图，而不是硬编码
+            String extractedIntent = extractQueryIntentFromLLMResponse(response);
+            if (extractedIntent != null && !extractedIntent.isEmpty()) {
+                result.setQueryIntent(extractedIntent);
+                logger.debug("Extracted query intent from LLM: {}", extractedIntent);
+            } else {
+                // 基于问题和Schema动态推断查询意图
+                String inferredIntent = inferQueryIntent(question);
+                result.setQueryIntent(inferredIntent);
+                logger.debug("Inferred query intent: {}", inferredIntent);
+            }
             
         } catch (Exception e) {
             logger.error("Failed to parse entity extraction response", e);
@@ -975,6 +989,115 @@ public class SchemaAwareGraphReasoner {
         
         if (m.find()) {
             return m.group(1);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 从LLM响应中提取关系类型
+     */
+    private List<String> extractRelationshipTypesFromLLMResponse(String response) {
+        List<String> relationshipTypes = new ArrayList<>();
+        
+        // 尝试从JSON响应中提取关系类型
+        if (response.contains("\"relationships\"") || response.contains("\"relations\"")) {
+            String[] lines = response.split("\n");
+            for (String line : lines) {
+                if (line.contains("\"type\"") || line.contains("\"relation\"")) {
+                    String relType = extractQuotedValue(line, "type");
+                    if (relType == null) {
+                        relType = extractQuotedValue(line, "relation");
+                    }
+                    if (relType != null && !relType.isEmpty()) {
+                        relationshipTypes.add(relType);
+                    }
+                }
+            }
+        }
+        
+        return relationshipTypes;
+    }
+    
+    /**
+     * 基于问题和Schema推断关系类型
+     */
+    private List<String> inferRelationshipTypes(String question, GraphSchema schema) {
+        List<String> inferredTypes = new ArrayList<>();
+        
+        if (schema == null) {
+            return inferredTypes;
+        }
+        
+        // 基于问题中的关键词推断相关关系类型
+        String lowerQuestion = question.toLowerCase();
+        
+        // 从Schema中获取所有关系类型，并计算相关性
+        for (RelationshipTypeInfo relType : schema.getRelationshipTypes()) {
+            String relationshipType = relType.getType();
+            double relevance = calculateRelationshipRelevanceForQuestion(lowerQuestion, relationshipType);
+            
+            if (relevance > 0.3) { // 相关性阈值
+                inferredTypes.add(relationshipType);
+                logger.debug("Inferred relationship type '{}' with relevance {:.3f}", relationshipType, relevance);
+            }
+        }
+        
+        // 如果没有找到相关关系，使用默认的高频关系类型
+        if (inferredTypes.isEmpty()) {
+            List<RelationshipTypeInfo> commonTypes = schema.getMostCommonRelationshipTypes(3);
+            for (RelationshipTypeInfo relType : commonTypes) {
+                inferredTypes.add(relType.getType());
+            }
+        }
+        
+        return inferredTypes;
+    }
+    
+    /**
+     * 计算关系类型与问题的相关性
+     */
+    private double calculateRelationshipRelevanceForQuestion(String question, String relationshipType) {
+        double relevance = 0.0;
+        String lowerRelType = relationshipType.toLowerCase();
+        
+        // 直接匹配
+        if (question.contains(lowerRelType)) {
+            relevance += 0.8;
+        }
+        
+        // 语义相关性检查
+        if (question.contains("关系") && (lowerRelType.contains("相关") || lowerRelType.contains("连接"))) {
+            relevance += 0.6;
+        }
+        
+        if (question.contains("治疗") && lowerRelType.contains("治")) {
+            relevance += 0.7;
+        }
+        
+        if (question.contains("组成") && (lowerRelType.contains("包含") || lowerRelType.contains("组成"))) {
+            relevance += 0.7;
+        }
+        
+        return Math.min(1.0, relevance);
+    }
+    
+    /**
+     * 从LLM响应中提取查询意图
+     */
+    private String extractQueryIntentFromLLMResponse(String response) {
+        // 尝试从JSON响应中提取意图
+        if (response.contains("\"intent\"") || response.contains("\"purpose\"")) {
+            String[] lines = response.split("\n");
+            for (String line : lines) {
+                String intent = extractQuotedValue(line, "intent");
+                if (intent == null) {
+                    intent = extractQuotedValue(line, "purpose");
+                }
+                if (intent != null && !intent.isEmpty()) {
+                    return intent;
+                }
+            }
         }
         
         return null;

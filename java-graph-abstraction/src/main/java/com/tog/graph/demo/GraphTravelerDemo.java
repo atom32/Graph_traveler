@@ -27,7 +27,7 @@ public class GraphTravelerDemo {
     public GraphTravelerDemo() throws FactoryException {
         GraphConfig config = new GraphConfig();
         this.reasoningService = GraphServiceFactory.createGraphReasoningService(config);
-        this.scanner = new Scanner(System.in);
+        this.scanner = new Scanner(System.in, "UTF-8");
         this.agentCoordinator = new MultiAgentCoordinator();
         
         // 初始化智能体系统
