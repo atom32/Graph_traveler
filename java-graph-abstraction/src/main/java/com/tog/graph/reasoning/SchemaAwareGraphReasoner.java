@@ -30,6 +30,7 @@ public class SchemaAwareGraphReasoner {
     private final ReasoningConfig config;
     private final GraphReasoner fallbackReasoner;
     private final PromptManager promptManager;
+    private GraphSchema schema;
     
     public SchemaAwareGraphReasoner(GraphDatabase graphDatabase, SearchEngine searchEngine, 
                                    LLMService llmService, ReasoningConfig config) {
@@ -49,14 +50,14 @@ public class SchemaAwareGraphReasoner {
             logger.info("Starting schema-aware reasoning for: {}", question);
             
             // 1. 获取Schema信息
-            GraphSchema schema = getGraphSchema();
-            if (schema == null) {
+            this.schema = getGraphSchema();
+            if (this.schema == null) {
                 logger.warn("No schema available, falling back to standard reasoning");
                 return fallbackReasoner.reason(question);
             }
             
             // 2. 使用LLM和Schema进行智能实体抽取
-            EntityExtractionResult extraction = performSchemaGuidedEntityExtraction(question, schema);
+            EntityExtractionResult extraction = performSchemaGuidedEntityExtraction(question, this.schema);
             
             if (extraction.getExtractedEntities().isEmpty()) {
                 logger.warn("No entities extracted, falling back to standard reasoning");
@@ -64,10 +65,10 @@ public class SchemaAwareGraphReasoner {
             }
             
             // 3. 基于Schema规划查询策略
-            QueryPlan queryPlan = planSchemaAwareQuery(question, extraction, schema);
+            QueryPlan queryPlan = planSchemaAwareQuery(question, extraction, this.schema);
             
             // 4. 执行查询计划
-            ReasoningResult result = executeQueryPlan(question, queryPlan, schema);
+            ReasoningResult result = executeQueryPlan(question, queryPlan, this.schema);
             
             logger.info("Schema-aware reasoning completed successfully");
             return result;
@@ -223,22 +224,30 @@ public class SchemaAwareGraphReasoner {
     }
     
     /**
-     * 判断是否为常见词汇 这部分应该有词典
+     * 基于Schema判断是否为常见词汇
      */
     private boolean isCommonWord(String word) {
-        String[] commonWords = {
-            "关系", "什么", "怎么", "哪里", "为什么", "怎样", "如何", 
-            "这个", "那个", "这些", "那些", "可以", "应该", "需要",
-            "问题", "方法", "时候", "地方", "东西", "事情", "情况"
-        };
-        
-        for (String common : commonWords) {
-            if (word.contains(common)) {
-                return true;
-            }
+        if (schema == null) {
+            return isBasicCommonWord(word);
         }
         
-        return false;
+        // 从Schema中获取停用词列表
+        List<String> stopWords = schema.getStopWords();
+        if (stopWords != null) {
+            return stopWords.stream().anyMatch(word::contains);
+        }
+        
+        return isBasicCommonWord(word);
+    }
+    
+    /**
+     * 基础常见词汇判断（最小集合）
+     */
+    private boolean isBasicCommonWord(String word) {
+        // 只保留最基础的停用词，避免硬编码
+        return word.length() <= 1 || 
+               word.matches(".*[的是在了和与为中].*") ||
+               word.matches(".*[什么怎么哪里为什么].*");
     }
     
     /**
@@ -550,31 +559,53 @@ public class SchemaAwareGraphReasoner {
     }
     
     /**
-     * 获取关系类型的权重 这里是硬编码，不好
+     * 基于Schema动态获取关系类型的权重
      */
     private double getRelationTypeWeight(String relationType) {
-        // 根据关系类型的重要性分配权重
-        switch (relationType.toLowerCase()) {
-            case "主治":
-            case "治疗":
-            case "治疗方法":
-                return 1.0;
-            case "组成":
-            case "包含":
-            case "含有":
-                return 0.9;
-            case "因果关系":
-            case "影响":
-                return 0.8;
-            case "对应":
-            case "相关":
-                return 0.7;
-            case "禁忌":
-            case "副作用":
-                return 0.6;
-            default:
-                return 0.5;
+        if (schema == null) {
+            return 0.5; // 默认权重
         }
+        
+        // 从Schema中获取关系类型的重要性配置
+        Map<String, Double> relationWeights = schema.getRelationTypeWeights();
+        if (relationWeights != null && relationWeights.containsKey(relationType)) {
+            return relationWeights.get(relationType);
+        }
+        
+        // 基于关系类型的语义特征动态计算权重
+        return calculateSemanticWeight(relationType);
+    }
+    
+    /**
+     * 基于语义特征计算关系权重
+     */
+    private double calculateSemanticWeight(String relationType) {
+        String lowerType = relationType.toLowerCase();
+        
+        // 高权重关键词
+        if (containsAny(lowerType, schema.getHighPriorityRelationKeywords())) {
+            return 1.0;
+        }
+        
+        // 中权重关键词
+        if (containsAny(lowerType, schema.getMediumPriorityRelationKeywords())) {
+            return 0.7;
+        }
+        
+        // 低权重关键词
+        if (containsAny(lowerType, schema.getLowPriorityRelationKeywords())) {
+            return 0.4;
+        }
+        
+        return 0.5; // 默认权重
+    }
+    
+    /**
+     * 检查字符串是否包含任何关键词
+     */
+    private boolean containsAny(String text, List<String> keywords) {
+        if (keywords == null) return false;
+        return keywords.stream().anyMatch(text::contains);
     }
     
     /**
@@ -707,5 +738,245 @@ public class SchemaAwareGraphReasoner {
         
         public String getType() { return type; }
         public double getConfidence() { return confidence; }
+    }
+    
+    /**
+     * 从LLM响应中提取实体
+     */
+    private List<String> extractEntitiesFromLLMResponse(String response) {
+        List<String> entities = new ArrayList<>();
+        
+        // 尝试JSON解析
+        if (response.contains("\"entities\"")) {
+            String[] lines = response.split("\n");
+            for (String line : lines) {
+                if (line.contains("\"text\"")) {
+                    String entity = extractQuotedValue(line, "text");
+                    if (entity != null && !entity.isEmpty()) {
+                        entities.add(entity);
+                    }
+                }
+            }
+        }
+        
+        return entities;
+    }
+    
+    /**
+     * 从问题中提取实体（基于Schema）
+     */
+    private List<String> extractEntitiesFromQuestion(String question) {
+        List<String> entities = new ArrayList<>();
+        
+        // 1. 使用Schema中定义的实体识别模式
+        if (schema != null) {
+            entities.addAll(extractEntitiesBySchemaPatterns(question));
+        }
+        
+        // 2. 通用实体识别
+        entities.addAll(extractGenericEntities(question));
+        
+        return entities.stream().distinct().collect(Collectors.toList());
+    }
+    
+    /**
+     * 基于Schema模式提取实体
+     */
+    private List<String> extractEntitiesBySchemaPatterns(String question) {
+        List<String> entities = new ArrayList<>();
+        
+        // 获取Schema中定义的实体识别规则
+        Map<String, List<String>> entityPatterns = schema.getEntityExtractionPatterns();
+        if (entityPatterns != null) {
+            for (Map.Entry<String, List<String>> entry : entityPatterns.entrySet()) {
+                String entityType = entry.getKey();
+                List<String> patterns = entry.getValue();
+                
+                for (String pattern : patterns) {
+                    entities.addAll(extractByPattern(question, pattern));
+                }
+            }
+        }
+        
+        return entities;
+    }
+    
+    /**
+     * 通用实体提取
+     */
+    private List<String> extractGenericEntities(String question) {
+        List<String> entities = new ArrayList<>();
+        
+        // 分词并过滤
+        String[] words = question.split("[\\s，。！？、的和与]+");
+        for (String word : words) {
+            if (isValidEntity(word)) {
+                entities.add(word);
+            }
+        }
+        
+        return entities;
+    }
+    
+    /**
+     * 基于模式提取实体
+     */
+    private List<String> extractByPattern(String text, String pattern) {
+        List<String> entities = new ArrayList<>();
+        try {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+            java.util.regex.Matcher m = p.matcher(text);
+            while (m.find()) {
+                entities.add(m.group(1));
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to apply pattern: {}", pattern, e);
+        }
+        return entities;
+    }
+    
+    /**
+     * 推断实体类型（基于Schema）
+     */
+    private String inferEntityType(String entity, GraphSchema schema) {
+        if (schema == null) {
+            return "ANY";
+        }
+        
+        // 使用Schema中定义的类型推断规则
+        Map<String, List<String>> typeInferenceRules = schema.getEntityTypeInferenceRules();
+        if (typeInferenceRules != null) {
+            for (Map.Entry<String, List<String>> entry : typeInferenceRules.entrySet()) {
+                String entityType = entry.getKey();
+                List<String> rules = entry.getValue();
+                
+                for (String rule : rules) {
+                    if (matchesRule(entity, rule)) {
+                        return entityType;
+                    }
+                }
+            }
+        }
+        
+        // 检查Schema中是否有匹配的节点类型
+        for (String nodeType : schema.getNodeTypeNames()) {
+            if (nodeType.contains(entity) || entity.contains(nodeType)) {
+                return nodeType;
+            }
+        }
+        
+        return "ANY";
+    }
+    
+    /**
+     * 检查实体是否匹配规则
+     */
+    private boolean matchesRule(String entity, String rule) {
+        try {
+            return entity.matches(rule);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 计算实体置信度（基于Schema）
+     */
+    private double calculateEntityConfidence(String entity, String question) {
+        double confidence = 0.5; // 基础置信度
+        
+        if (schema != null) {
+            // 使用Schema中定义的置信度计算规则
+            Map<String, Double> confidenceRules = schema.getEntityConfidenceRules();
+            if (confidenceRules != null) {
+                for (Map.Entry<String, Double> entry : confidenceRules.entrySet()) {
+                    String rule = entry.getKey();
+                    Double boost = entry.getValue();
+                    
+                    if (matchesRule(entity, rule)) {
+                        confidence += boost;
+                    }
+                }
+            }
+        }
+        
+        // 基础规则
+        if (entity.length() >= 2 && entity.length() <= 4) {
+            confidence += 0.1;
+        }
+        
+        if (question.indexOf(entity) < question.length() / 2) {
+            confidence += 0.1;
+        }
+        
+        return Math.min(1.0, confidence);
+    }
+    
+    /**
+     * 获取最优搜索属性（基于Schema）
+     */
+    private List<String> getOptimalSearchProperties(String entity, String entityType, GraphSchema schema) {
+        List<String> properties = new ArrayList<>();
+        
+        // 基础属性
+        properties.add("name");
+        
+        if (schema != null) {
+            // 从Schema中获取实体类型的推荐搜索属性
+            Map<String, List<String>> typeProperties = schema.getEntityTypeSearchProperties();
+            if (typeProperties != null && typeProperties.containsKey(entityType)) {
+                properties.addAll(typeProperties.get(entityType));
+            }
+        }
+        
+        return properties;
+    }
+    
+    /**
+     * 推断查询意图（基于Schema）
+     */
+    private String inferQueryIntent(String question) {
+        if (schema != null) {
+            Map<String, List<String>> intentPatterns = schema.getQueryIntentPatterns();
+            if (intentPatterns != null) {
+                for (Map.Entry<String, List<String>> entry : intentPatterns.entrySet()) {
+                    String intent = entry.getKey();
+                    List<String> patterns = entry.getValue();
+                    
+                    for (String pattern : patterns) {
+                        if (question.contains(pattern)) {
+                            return intent;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return "通用知识查询";
+    }
+    
+    /**
+     * 判断是否为有效实体
+     */
+    private boolean isValidEntity(String word) {
+        return word.length() >= 2 && 
+               !isCommonWord(word) && 
+               !word.matches(".*[？！。，、].*") &&
+               word.matches(".*[\\u4e00-\\u9fa5].*"); // 包含中文
+    }
+    
+    /**
+     * 从字符串中提取引号内的值
+     */
+    private String extractQuotedValue(String line, String key) {
+        String pattern = "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"";
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
+        java.util.regex.Matcher m = p.matcher(line);
+        
+        if (m.find()) {
+            return m.group(1);
+        }
+        
+        return null;
     }
 }

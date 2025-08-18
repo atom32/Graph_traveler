@@ -52,6 +52,9 @@ public class DatabaseNeutralSchemaAnalyzer {
             // 4. 构建搜索策略建议
             buildSearchStrategiesNeutral(schema);
             
+            // 5. 初始化智能抽取配置
+            initializeIntelligentExtractionConfig(schema);
+            
             cachedSchema = schema;
             lastAnalysisTime = System.currentTimeMillis();
             
@@ -333,5 +336,140 @@ public class DatabaseNeutralSchemaAnalyzer {
      */
     public String getDatabaseVersion() {
         return graphDatabase.getVersion();
+    }
+    
+    /**
+     * 初始化智能抽取配置
+     */
+    private void initializeIntelligentExtractionConfig(GraphSchema schema) {
+        logger.debug("Initializing intelligent extraction configuration...");
+        
+        try {
+            // 1. 基于实际数据分析关系类型权重
+            analyzeRelationTypeWeights(schema);
+            
+            // 2. 基于节点类型分析实体抽取模式
+            analyzeEntityExtractionPatterns(schema);
+            
+            // 3. 基于属性分析搜索策略
+            analyzeSearchProperties(schema);
+            
+            // 4. 初始化默认配置
+            schema.initializeDefaultExtractionConfig();
+            
+            logger.debug("Intelligent extraction configuration initialized successfully");
+            
+        } catch (Exception e) {
+            logger.warn("Failed to initialize intelligent extraction config, using defaults", e);
+            schema.initializeDefaultExtractionConfig();
+        }
+    }
+    
+    /**
+     * 分析关系类型权重
+     */
+    private void analyzeRelationTypeWeights(GraphSchema schema) {
+        Map<String, Double> weights = new HashMap<>();
+        
+        // 基于关系类型的频率和语义特征计算权重
+        for (RelationshipTypeInfo relType : schema.getRelationshipTypes()) {
+            String type = relType.getType();
+            long count = relType.getTotalCount();
+            
+            // 基础权重：基于频率
+            double baseWeight = Math.min(1.0, count / 1000.0);
+            
+            // 语义权重：基于关系类型名称的语义重要性
+            double semanticWeight = calculateSemanticWeight(type);
+            
+            // 综合权重
+            double finalWeight = (baseWeight + semanticWeight) / 2.0;
+            weights.put(type, finalWeight);
+        }
+        
+        schema.setRelationTypeWeights(weights);
+    }
+    
+    /**
+     * 计算关系类型的语义权重
+     */
+    private double calculateSemanticWeight(String relationType) {
+        String lowerType = relationType.toLowerCase();
+        
+        // 高权重关键词
+        if (lowerType.contains("主治") || lowerType.contains("治疗") || 
+            lowerType.contains("包含") || lowerType.contains("组成")) {
+            return 1.0;
+        }
+        
+        // 中权重关键词
+        if (lowerType.contains("相关") || lowerType.contains("影响") || 
+            lowerType.contains("对应") || lowerType.contains("属于")) {
+            return 0.7;
+        }
+        
+        // 低权重关键词
+        if (lowerType.contains("提及") || lowerType.contains("描述") || 
+            lowerType.contains("引用")) {
+            return 0.4;
+        }
+        
+        return 0.5; // 默认权重
+    }
+    
+    /**
+     * 分析实体抽取模式
+     */
+    private void analyzeEntityExtractionPatterns(GraphSchema schema) {
+        Map<String, List<String>> patterns = new HashMap<>();
+        
+        // 基于节点类型和属性分析抽取模式
+        for (NodeTypeInfo nodeType : schema.getNodeTypes()) {
+            String typeName = nodeType.getLabel();
+            List<String> typePatterns = new ArrayList<>();
+            
+            // 基于节点类型名称生成模式
+            if (typeName.contains("Person") || typeName.contains("人")) {
+                typePatterns.add("([\\u4e00-\\u9fa5]{2,4})");
+            } else if (typeName.contains("Book") || typeName.contains("书") || typeName.contains("典籍")) {
+                typePatterns.add("《([^》]+)》");
+                typePatterns.add("([\\u4e00-\\u9fa5]+[经论方])");
+            }
+            
+            if (!typePatterns.isEmpty()) {
+                patterns.put(typeName, typePatterns);
+            }
+        }
+        
+        schema.setEntityExtractionPatterns(patterns);
+    }
+    
+    /**
+     * 分析搜索属性
+     */
+    private void analyzeSearchProperties(GraphSchema schema) {
+        Map<String, List<String>> searchProperties = new HashMap<>();
+        
+        // 基于节点类型的属性分析最优搜索属性
+        for (NodeTypeInfo nodeType : schema.getNodeTypes()) {
+            String typeName = nodeType.getLabel();
+            List<String> properties = new ArrayList<>();
+            
+            // 添加基础属性
+            properties.add("name");
+            
+            // 基于实际属性添加搜索属性
+            for (PropertyInfo prop : nodeType.getProperties()) {
+                String propName = prop.getName();
+                if (propName.contains("名") || propName.contains("title") || 
+                    propName.contains("全称") || propName.contains("别名")) {
+                    properties.add(propName);
+                }
+            }
+            
+            searchProperties.put(typeName, properties);
+        }
+        
+        schema.setEntityTypeSearchProperties(searchProperties);
     }
 }

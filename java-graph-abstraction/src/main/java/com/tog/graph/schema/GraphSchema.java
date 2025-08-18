@@ -126,4 +126,169 @@ public class GraphSchema {
                 .limit(limit)
                 .collect(ArrayList::new, (list, item) -> list.add(item), ArrayList::addAll);
     }
+    
+    // ========== 智能抽取支持方法 ==========
+    
+    private Map<String, Double> relationTypeWeights = new HashMap<>();
+    private List<String> highPriorityRelationKeywords = new ArrayList<>();
+    private List<String> mediumPriorityRelationKeywords = new ArrayList<>();
+    private List<String> lowPriorityRelationKeywords = new ArrayList<>();
+    private List<String> stopWords = new ArrayList<>();
+    private Map<String, List<String>> entityExtractionPatterns = new HashMap<>();
+    private Map<String, List<String>> entityTypeInferenceRules = new HashMap<>();
+    private Map<String, Double> entityConfidenceRules = new HashMap<>();
+    private Map<String, List<String>> entityTypeSearchProperties = new HashMap<>();
+    private Map<String, List<String>> queryIntentPatterns = new HashMap<>();
+    
+    /**
+     * 获取关系类型权重配置
+     */
+    public Map<String, Double> getRelationTypeWeights() {
+        return relationTypeWeights;
+    }
+    
+    public void setRelationTypeWeights(Map<String, Double> relationTypeWeights) {
+        this.relationTypeWeights = relationTypeWeights;
+    }
+    
+    /**
+     * 获取高优先级关系关键词
+     */
+    public List<String> getHighPriorityRelationKeywords() {
+        return highPriorityRelationKeywords;
+    }
+    
+    public void setHighPriorityRelationKeywords(List<String> keywords) {
+        this.highPriorityRelationKeywords = keywords;
+    }
+    
+    /**
+     * 获取中优先级关系关键词
+     */
+    public List<String> getMediumPriorityRelationKeywords() {
+        return mediumPriorityRelationKeywords;
+    }
+    
+    public void setMediumPriorityRelationKeywords(List<String> keywords) {
+        this.mediumPriorityRelationKeywords = keywords;
+    }
+    
+    /**
+     * 获取低优先级关系关键词
+     */
+    public List<String> getLowPriorityRelationKeywords() {
+        return lowPriorityRelationKeywords;
+    }
+    
+    public void setLowPriorityRelationKeywords(List<String> keywords) {
+        this.lowPriorityRelationKeywords = keywords;
+    }
+    
+    /**
+     * 获取停用词列表
+     */
+    public List<String> getStopWords() {
+        return stopWords;
+    }
+    
+    public void setStopWords(List<String> stopWords) {
+        this.stopWords = stopWords;
+    }
+    
+    /**
+     * 获取实体抽取模式
+     */
+    public Map<String, List<String>> getEntityExtractionPatterns() {
+        return entityExtractionPatterns;
+    }
+    
+    public void setEntityExtractionPatterns(Map<String, List<String>> patterns) {
+        this.entityExtractionPatterns = patterns;
+    }
+    
+    /**
+     * 获取实体类型推断规则
+     */
+    public Map<String, List<String>> getEntityTypeInferenceRules() {
+        return entityTypeInferenceRules;
+    }
+    
+    public void setEntityTypeInferenceRules(Map<String, List<String>> rules) {
+        this.entityTypeInferenceRules = rules;
+    }
+    
+    /**
+     * 获取实体置信度规则
+     */
+    public Map<String, Double> getEntityConfidenceRules() {
+        return entityConfidenceRules;
+    }
+    
+    public void setEntityConfidenceRules(Map<String, Double> rules) {
+        this.entityConfidenceRules = rules;
+    }
+    
+    /**
+     * 获取实体类型搜索属性映射
+     */
+    public Map<String, List<String>> getEntityTypeSearchProperties() {
+        return entityTypeSearchProperties;
+    }
+    
+    public void setEntityTypeSearchProperties(Map<String, List<String>> properties) {
+        this.entityTypeSearchProperties = properties;
+    }
+    
+    /**
+     * 获取查询意图模式
+     */
+    public Map<String, List<String>> getQueryIntentPatterns() {
+        return queryIntentPatterns;
+    }
+    
+    public void setQueryIntentPatterns(Map<String, List<String>> patterns) {
+        this.queryIntentPatterns = patterns;
+    }
+    
+    /**
+     * 获取所有节点类型名称
+     */
+    public Set<String> getNodeTypeNames() {
+        return nodeTypes.keySet();
+    }
+    
+    /**
+     * 初始化默认的智能抽取配置
+     */
+    public void initializeDefaultExtractionConfig() {
+        // 设置默认的关系优先级关键词
+        highPriorityRelationKeywords.addAll(Arrays.asList("主治", "治疗", "包含", "组成"));
+        mediumPriorityRelationKeywords.addAll(Arrays.asList("相关", "影响", "对应"));
+        lowPriorityRelationKeywords.addAll(Arrays.asList("提及", "描述"));
+        
+        // 设置默认停用词
+        stopWords.addAll(Arrays.asList("的", "是", "在", "了", "和", "与", "为", "中", 
+                                      "什么", "怎么", "哪里", "为什么", "这个", "那个"));
+        
+        // 设置默认实体抽取模式
+        entityExtractionPatterns.put("Person", Arrays.asList("([\\u4e00-\\u9fa5]{2,4})"));
+        entityExtractionPatterns.put("Book", Arrays.asList("《([^》]+)》"));
+        
+        // 设置默认类型推断规则
+        entityTypeInferenceRules.put("Person", Arrays.asList("[\\u4e00-\\u9fa5]{2,4}"));
+        entityTypeInferenceRules.put("Book", Arrays.asList(".*[经论方]$"));
+        
+        // 设置默认置信度规则
+        entityConfidenceRules.put(".*[经论方汤丸散].*", 0.3);
+        entityConfidenceRules.put("[\\u4e00-\\u9fa5]{2,4}", 0.2);
+        
+        // 设置默认搜索属性
+        entityTypeSearchProperties.put("Person", Arrays.asList("name", "姓名", "人名", "字", "号"));
+        entityTypeSearchProperties.put("Book", Arrays.asList("name", "title", "书名", "全称"));
+        
+        // 设置默认查询意图模式
+        queryIntentPatterns.put("关系分析", Arrays.asList("关系", "联系", "连接"));
+        queryIntentPatterns.put("信息查询", Arrays.asList("是什么", "介绍", "详情"));
+        queryIntentPatterns.put("治疗方案", Arrays.asList("治疗", "怎么办", "如何"));
+    }
 }
