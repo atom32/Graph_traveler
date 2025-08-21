@@ -9,6 +9,7 @@ import com.tog.graph.schema.GraphSchema;
 import com.tog.graph.schema.NodeTypeInfo;
 import com.tog.graph.schema.RelationshipTypeInfo;
 import com.tog.graph.schema.SearchStrategy;
+import com.tog.graph.schema.DatabaseNeutralSchemaAnalyzer;
 import com.tog.graph.prompt.PromptManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,7 @@ public class SchemaAwareGraphReasoner {
     private final ReasoningConfig config;
     private final GraphReasoner fallbackReasoner;
     private final PromptManager promptManager;
+    private final DatabaseNeutralSchemaAnalyzer schemaAnalyzer;
     private GraphSchema schema;
     
     public SchemaAwareGraphReasoner(GraphDatabase graphDatabase, SearchEngine searchEngine, 
@@ -40,6 +42,7 @@ public class SchemaAwareGraphReasoner {
         this.config = config;
         this.fallbackReasoner = new GraphReasoner(graphDatabase, searchEngine, llmService, config);
         this.promptManager = PromptManager.getInstance();
+        this.schemaAnalyzer = new DatabaseNeutralSchemaAnalyzer(graphDatabase);
     }
     
     /**
@@ -78,15 +81,67 @@ public class SchemaAwareGraphReasoner {
             return fallbackReasoner.reason(question);
         }
     }
+
+
+    /**
+     * 简化的推理得出结论（不进行复杂查询）
+     */
+    public ReasoningResult reasonWithContext(String question, String context) {
+        try {
+            String prompt = promptManager.getPrompt("answer-generation",
+                PromptManager.params("question", question, "context", context));
+            String answer = llmService.generate(prompt, 0.2, 256);
+            return new ReasoningResult(question, answer, Collections.emptyList(), Collections.emptyList());
+        } catch (Exception e) {
+            logger.error("Failed to generate answer with context", e);
+            return new ReasoningResult(question, "生成结论失败", Collections.emptyList(), Collections.emptyList());
+        }
+    }
     
     /**
-     * 获取图Schema
+     * 获取图Schema - 使用完整的Schema分析
      */
     private GraphSchema getGraphSchema() {
-        if (searchEngine instanceof AdvancedGraphSearchEngine) {
-            return ((AdvancedGraphSearchEngine) searchEngine).getSchema();
+        try {
+            logger.debug("Analyzing graph schema using DatabaseNeutralSchemaAnalyzer...");
+            
+            // 使用DatabaseNeutralSchemaAnalyzer进行完整的Schema分析
+            GraphSchema analyzedSchema = schemaAnalyzer.analyzeSchema();
+            
+            if (analyzedSchema != null) {
+                logger.info("Schema analysis completed: {} node types, {} relationship types", 
+                           analyzedSchema.getNodeTypes().size(), 
+                           analyzedSchema.getRelationshipTypes().size());
+                
+                // 打印Schema摘要用于调试
+                logger.debug("Schema Summary:\n{}", analyzedSchema.getSummary());
+                
+                return analyzedSchema;
+            }
+            
+            // Fallback: 尝试从AdvancedGraphSearchEngine获取
+            if (searchEngine instanceof AdvancedGraphSearchEngine) {
+                logger.debug("Falling back to AdvancedGraphSearchEngine schema");
+                return ((AdvancedGraphSearchEngine) searchEngine).getSchema();
+            }
+            
+            logger.warn("No schema available from any source");
+            return null;
+            
+        } catch (Exception e) {
+            logger.error("Failed to analyze graph schema", e);
+            
+            // 最后的fallback
+            if (searchEngine instanceof AdvancedGraphSearchEngine) {
+                try {
+                    return ((AdvancedGraphSearchEngine) searchEngine).getSchema();
+                } catch (Exception fallbackError) {
+                    logger.error("Fallback schema retrieval also failed", fallbackError);
+                }
+            }
+            
+            return null;
         }
-        return null;
     }
     
     /**

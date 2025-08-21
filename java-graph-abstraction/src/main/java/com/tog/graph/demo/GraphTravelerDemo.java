@@ -578,7 +578,9 @@ public class GraphTravelerDemo {
             // 创建一个简化的问题让Schema推理器生成结论
             String conclusionPrompt = "基于以上多智能体分析结果，请总结：" + question;
             
-            ReasoningResult conclusionResult = reasoningService.performSchemaAwareReasoning(conclusionPrompt);
+            //ReasoningResult conclusionResult = reasoningService.performSchemaAwareReasoning(conclusionPrompt);
+            //将结论结果传递给智能体进行处理，而不是使用schema再搜一次
+            ReasoningResult conclusionResult = reasoningService.reasonWithContext(conclusionPrompt, context);
             
             if (conclusionResult != null && conclusionResult.getAnswer() != null) {
                 System.out.println("🧠 AI生成的综合结论:");

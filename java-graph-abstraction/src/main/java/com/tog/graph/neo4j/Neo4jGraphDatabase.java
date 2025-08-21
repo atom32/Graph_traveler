@@ -498,45 +498,239 @@ public class Neo4jGraphDatabase implements com.tog.graph.core.GraphDatabase {
     
     @Override
     public List<PropertyInfo> analyzeNodeProperties(String nodeType) {
-        // TODO: 实现详细的属性分析
         List<PropertyInfo> properties = new ArrayList<>();
-        for (String propName : getNodeProperties(nodeType)) {
-            PropertyInfo propInfo = new PropertyInfo(propName, 1);
-            properties.add(propInfo);
+        
+        try (Session session = driver.session()) {
+            // 获取节点类型的所有属性及其统计信息
+            // 使用简化的查询，不获取类型信息以避免type()函数错误
+            Result result = session.run(
+                "MATCH (n:" + nodeType + ") " +
+                "UNWIND keys(n) as key " +
+                "RETURN DISTINCT key, " +
+                "       count(*) as frequency " +
+                "ORDER BY frequency DESC"
+            );
+            
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                String propertyName = record.get("key").asString();
+                long frequency = record.get("frequency").asLong();
+                
+                PropertyInfo propInfo = new PropertyInfo(propertyName, frequency);
+                
+                // 尝试获取属性值的类型信息（使用单独的查询）
+                try {
+                    analyzePropertyTypes(session, nodeType, propertyName, propInfo);
+                } catch (Exception typeError) {
+                    logger.debug("Could not analyze types for property {}.{}: {}", 
+                               nodeType, propertyName, typeError.getMessage());
+                    // 设置默认类型
+                    propInfo.addValueType("UNKNOWN", 1L);
+                }
+                
+                properties.add(propInfo);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error analyzing node properties for type: {}", nodeType, e);
+            // Fallback: 使用简单方法
+            for (String propName : getNodeProperties(nodeType)) {
+                PropertyInfo propInfo = new PropertyInfo(propName, 1);
+                propInfo.addValueType("UNKNOWN", 1L);
+                properties.add(propInfo);
+            }
         }
+        
         return properties;
+    }
+    
+    /**
+     * 分析属性的类型分布
+     */
+    private void analyzePropertyTypes(Session session, String nodeType, String propertyName, PropertyInfo propInfo) {
+        try {
+            String escapedProperty = escapePropertyName(propertyName);
+            
+            // 获取属性值的样本来推断类型
+            Result typeResult = session.run(
+                "MATCH (n:" + nodeType + ") " +
+                "WHERE n." + escapedProperty + " IS NOT NULL " +
+                "RETURN DISTINCT n." + escapedProperty + " as value " +
+                "LIMIT 5"
+            );
+            
+            Map<String, Long> typeCount = new HashMap<>();
+            while (typeResult.hasNext()) {
+                org.neo4j.driver.Record record = typeResult.next();
+                Object value = record.get("value").asObject();
+                String javaType = getJavaTypeName(value);
+                typeCount.put(javaType, typeCount.getOrDefault(javaType, 0L) + 1L);
+            }
+            
+            // 设置类型分布
+            for (Map.Entry<String, Long> entry : typeCount.entrySet()) {
+                propInfo.addValueType(entry.getKey(), entry.getValue());
+            }
+            
+            // 如果没有找到任何类型，设置默认类型
+            if (typeCount.isEmpty()) {
+                propInfo.addValueType("UNKNOWN", 1L);
+            }
+            
+        } catch (Exception e) {
+            logger.debug("Error analyzing property types for {}.{}: {}", nodeType, propertyName, e.getMessage());
+            propInfo.addValueType("UNKNOWN", 1L);
+        }
+    }
+    
+    /**
+     * 获取Java对象的类型名称
+     */
+    private String getJavaTypeName(Object value) {
+        if (value == null) {
+            return "NULL";
+        } else if (value instanceof String) {
+            return "STRING";
+        } else if (value instanceof Long || value instanceof Integer) {
+            return "INTEGER";
+        } else if (value instanceof Double || value instanceof Float) {
+            return "FLOAT";
+        } else if (value instanceof Boolean) {
+            return "BOOLEAN";
+        } else if (value instanceof java.util.List) {
+            return "LIST";
+        } else if (value instanceof java.util.Map) {
+            return "MAP";
+        } else {
+            return value.getClass().getSimpleName().toUpperCase();
+        }
     }
     
     @Override
     public List<PropertyInfo> analyzeRelationshipProperties(String relationshipType) {
-        // TODO: 实现详细的关系属性分析
         List<PropertyInfo> properties = new ArrayList<>();
-        for (String propName : getRelationshipProperties(relationshipType)) {
-            PropertyInfo propInfo = new PropertyInfo(propName, 1);
-            properties.add(propInfo);
+        
+        try (Session session = driver.session()) {
+            // 获取关系类型的所有属性及其统计信息
+            // 使用简化的查询，不获取类型信息以避免type()函数错误
+            Result result = session.run(
+                "MATCH ()-[r:" + relationshipType + "]->() " +
+                "UNWIND keys(r) as key " +
+                "RETURN DISTINCT key, " +
+                "       count(*) as frequency " +
+                "ORDER BY frequency DESC"
+            );
+            
+            while (result.hasNext()) {
+                org.neo4j.driver.Record record = result.next();
+                String propertyName = record.get("key").asString();
+                long frequency = record.get("frequency").asLong();
+                
+                PropertyInfo propInfo = new PropertyInfo(propertyName, frequency);
+                
+                // 尝试获取关系属性值的类型信息
+                try {
+                    analyzeRelationshipPropertyTypes(session, relationshipType, propertyName, propInfo);
+                } catch (Exception typeError) {
+                    logger.debug("Could not analyze types for relationship property {}.{}: {}", 
+                               relationshipType, propertyName, typeError.getMessage());
+                    // 设置默认类型
+                    propInfo.addValueType("UNKNOWN", 1L);
+                }
+                
+                properties.add(propInfo);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error analyzing relationship properties for type: {}", relationshipType, e);
+            // Fallback: 使用简单方法
+            for (String propName : getRelationshipProperties(relationshipType)) {
+                PropertyInfo propInfo = new PropertyInfo(propName, 1);
+                propInfo.addValueType("UNKNOWN", 1L);
+                properties.add(propInfo);
+            }
         }
+        
         return properties;
+    }
+    
+    /**
+     * 分析关系属性的类型分布
+     */
+    private void analyzeRelationshipPropertyTypes(Session session, String relationshipType, String propertyName, PropertyInfo propInfo) {
+        try {
+            String escapedProperty = escapePropertyName(propertyName);
+            
+            // 获取关系属性值的样本来推断类型
+            Result typeResult = session.run(
+                "MATCH ()-[r:" + relationshipType + "]->() " +
+                "WHERE r." + escapedProperty + " IS NOT NULL " +
+                "RETURN DISTINCT r." + escapedProperty + " as value " +
+                "LIMIT 5"
+            );
+            
+            Map<String, Long> typeCount = new HashMap<>();
+            while (typeResult.hasNext()) {
+                org.neo4j.driver.Record record = typeResult.next();
+                Object value = record.get("value").asObject();
+                String javaType = getJavaTypeName(value);
+                typeCount.put(javaType, typeCount.getOrDefault(javaType, 0L) + 1L);
+            }
+            
+            // 设置类型分布
+            for (Map.Entry<String, Long> entry : typeCount.entrySet()) {
+                propInfo.addValueType(entry.getKey(), entry.getValue());
+            }
+            
+            // 如果没有找到任何类型，设置默认类型
+            if (typeCount.isEmpty()) {
+                propInfo.addValueType("UNKNOWN", 1L);
+            }
+            
+        } catch (Exception e) {
+            logger.debug("Error analyzing relationship property types for {}.{}: {}", relationshipType, propertyName, e.getMessage());
+            propInfo.addValueType("UNKNOWN", 1L);
+        }
     }
     
     @Override
     public List<String> getSamplePropertyValues(String nodeType, String property, int limit) {
         try (Session session = driver.session()) {
+            // 对属性名进行转义，处理特殊字符和数字开头的属性名
+            String escapedProperty = escapePropertyName(property);
+            
             Result result = session.run(
-                "MATCH (n:" + nodeType + ") WHERE n." + property + " IS NOT NULL " +
-                "RETURN n." + property + " as value LIMIT " + limit
+                "MATCH (n:" + nodeType + ") WHERE n." + escapedProperty + " IS NOT NULL " +
+                "RETURN n." + escapedProperty + " as value LIMIT " + limit
             );
             
             List<String> values = new ArrayList<>();
             while (result.hasNext()) {
                 org.neo4j.driver.Record record = result.next();
-                values.add(record.get("value").toString());
+                Object value = record.get("value").asObject();
+                if (value != null) {
+                    values.add(value.toString());
+                }
             }
             
             return values;
         } catch (Exception e) {
-            logger.error("Error getting sample property values", e);
+            logger.error("Error getting sample property values for {}:{}", nodeType, property, e);
             return new ArrayList<>();
         }
+    }
+    
+    /**
+     * 转义属性名称，处理特殊字符和数字开头的情况
+     */
+    private String escapePropertyName(String propertyName) {
+        // 如果属性名包含特殊字符、空格或以数字开头，需要用反引号包围
+        if (propertyName.matches(".*[^a-zA-Z0-9_].*") || 
+            propertyName.matches("^[0-9].*") || 
+            propertyName.contains(" ")) {
+            return "`" + propertyName + "`";
+        }
+        return propertyName;
     }
     
     @Override

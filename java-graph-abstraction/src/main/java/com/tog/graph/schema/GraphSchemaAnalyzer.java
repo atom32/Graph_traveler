@@ -109,13 +109,13 @@ public class GraphSchemaAnalyzer {
             try {
                 logger.debug("Trying db.labels()...");
                 labelResults = graphDatabase.executeQuery(
-                    "CALL db.labels() YIELD label RETURN label LIMIT 20", new HashMap<>());
+                    "CALL db.labels() YIELD label RETURN label", new HashMap<>());
                 logger.debug("Found {} labels using db.labels()", labelResults.size());
             } catch (Exception e) {
                 // 如果db.labels()不可用，使用备用方法
                 logger.debug("db.labels() not available, using fallback method");
                 labelResults = graphDatabase.executeQuery(
-                    "MATCH (n) RETURN DISTINCT labels(n) as labelList LIMIT 20", new HashMap<>());
+                    "MATCH (n) RETURN DISTINCT labels(n) as labelList", new HashMap<>());
                 // 需要处理labelList格式
                 List<Map<String, Object>> processedResults = new ArrayList<>();
                 for (Map<String, Object> result : labelResults) {
@@ -434,14 +434,14 @@ public class GraphSchemaAnalyzer {
             try {
                 logger.debug("Trying db.relationshipTypes()...");
                 typeResults = graphDatabase.executeQuery(
-                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType LIMIT 10", 
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", 
                     new HashMap<>());
                 logger.debug("Found {} relationship types using db.relationshipTypes()", typeResults.size());
             } catch (Exception e) {
                 // 如果db.relationshipTypes()不可用，使用备用方法
                 logger.debug("db.relationshipTypes() not available, using fallback method");
                 typeResults = graphDatabase.executeQuery(
-                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType LIMIT 10", 
+                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType", 
                     new HashMap<>());
                 logger.debug("Found {} relationship types using fallback method", typeResults.size());
             }
@@ -543,29 +543,19 @@ public class GraphSchemaAnalyzer {
         try {
             logger.debug("Analyzing graph statistics...");
             
-            // 使用已有的节点类型统计来计算总节点数，避免全图扫描
-            long totalNodes = schema.getNodeTypes().stream()
-                .mapToLong(NodeTypeInfo::getCount)
-                .sum();
-            
-            if (totalNodes > 0) {
-                schema.setTotalNodes(totalNodes);
-                logger.debug("Total nodes (from node types): {}", totalNodes);
-            } else {
-                // 如果节点类型统计失败，尝试快速计算
-                try {
-                    List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
-                        "MATCH (n) RETURN count(n) as totalNodes LIMIT 1", new HashMap<>());
-                    
-                    if (!nodeCountResults.isEmpty()) {
-                        totalNodes = ((Number) nodeCountResults.get(0).get("totalNodes")).longValue();
-                        schema.setTotalNodes(totalNodes);
-                        logger.debug("Total nodes (direct count): {}", totalNodes);
-                    }
-                } catch (Exception e) {
-                    logger.debug("Failed to get total node count", e);
-                    schema.setTotalNodes(0);
+            // 直接用Cypher查询全图节点数，保证统计准确
+            try {
+                List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
+                    "MATCH (n) RETURN count(n) as totalNodes LIMIT 1", new HashMap<>());
+                long totalNodes = 0;
+                if (!nodeCountResults.isEmpty()) {
+                    totalNodes = ((Number) nodeCountResults.get(0).get("totalNodes")).longValue();
                 }
+                schema.setTotalNodes(totalNodes);
+                logger.debug("Total nodes (direct count): {}", totalNodes);
+            } catch (Exception e) {
+                logger.debug("Failed to get total node count", e);
+                schema.setTotalNodes(0);
             }
             
             // 简化关系统计 - 只做快速估算
