@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Traveler API 测试客户端</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        
+        .section h3 {
+            color: #34495e;
+            margin-top: 0;
+        }
+        
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        .result {
+            background-color: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Graph Traveler API 测试客户端</h1>
+        
+        <div class="section">
+            <h3>🔍 服务状态检查</h3>
+            <button onclick="checkHealth()">检查服务健康状态</button>
+            <div id="healthResult" class="result"></div>
+        </div>
+        
+        <div class="grid">
+            <div class="section">
+                <h3>🔍 实体搜索</h3>
+                <input type="text" id="searchQuery" placeholder="输入搜索关键词，如：张仲景" value="张仲景">
+                <input type="number" id="searchLimit" placeholder="结果数量限制" value="5" min="1" max="20">
+                <button onclick="searchEntities()">搜索实体</button>
+                <div id="searchResult" class="result"></div>
+            </div>
+            
+            <div class="section">
+                <h3>🧠 智能推理查询</h3>
+                <textarea id="reasoningQuestion" placeholder="输入推理问题，如：张仲景与伤寒论的关系？" rows="3">张仲景与伤寒论的关系？</textarea>
+                <button onclick="performReasoning()">执行智能推理</button>
+                <div id="reasoningResult" class="result"></div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="section">
+                <h3>🤖 多智能体协作</h3>
+                <textarea id="agentQuery" placeholder="输入协作查询，如：分析张机与王叔和的关系" rows="3">分析张机与王叔和的关系</textarea>
+                <button onclick="collaborativeQuery()">执行协作查询</button>
+                <div id="agentResult" class="result"></div>
+            </div>
+            
+            <div class="section">
+                <h3>📊 Schema 信息</h3>
+                <button onclick="getSchema()">获取数据库 Schema</button>
+                <div id="schemaResult" class="result"></div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>⚙️ API 配置</h3>
+            <input type="text" id="apiBase" placeholder="API 基础地址" value="http://localhost:8080/api/v1/graph">
+            <div class="status" id="connectionStatus">准备就绪</div>
+        </div>
+    </div>
+
+    <script>
+        const getApiBase = () => document.getElementById('apiBase').value;
+        
+        const showStatus = (elementId, message, isSuccess = true) => {
+            const element = document.getElementById(elementId);
+            if (elementId === 'connectionStatus') {
+                element.className = `status ${isSuccess ? 'success' : 'error'}`;
+                element.textContent = message;
+            } else {
+                element.textContent = message;
+            }
+        };
+        
+        const makeRequest = async (endpoint, method = 'GET', body = null) => {
+            try {
+                const config = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (body) {
+                    config.body = JSON.stringify(body);
+                }
+                
+                const response = await fetch(`${getApiBase()}${endpoint}`, config);
+                const data = await response.json();
+                
+                return {
+                    success: response.ok,
+                    data,
+                    status: response.status
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        };
+        
+        const checkHealth = async () => {
+            showStatus('connectionStatus', '检查中...', true);
+            
+            const result = await makeRequest('/health');
+            
+            if (result.success) {
+                showStatus('connectionStatus', `服务状态: ${result.data.status}`, result.data.status === 'healthy');
+                document.getElementById('healthResult').textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                showStatus('connectionStatus', `连接失败: ${result.error || '服务不可用'}`, false);
+                document.getElementById('healthResult').textContent = `错误: ${result.error || '服务不可用'}`;
+            }
+        };
+        
+        const searchEntities = async () => {
+            const query = document.getElementById('searchQuery').value;
+            const limit = parseInt(document.getElementById('searchLimit').value) || 5;
+            
+            if (!query.trim()) {
+                alert('请输入搜索关键词');
+                return;
+            }
+            
+            document.getElementById('searchResult').textContent = '搜索中...';
+            
+            const result = await makeRequest('/search/entities', 'POST', {
+                query: query,
+                limit: limit
+            });
+            
+            if (result.success) {
+                document.getElementById('searchResult').textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                document.getElementById('searchResult').textContent = `错误: ${result.error || '搜索失败'}`;
+            }
+        };
+        
+        const performReasoning = async () => {
+            const question = document.getElementById('reasoningQuestion').value;
+            
+            if (!question.trim()) {
+                alert('请输入推理问题');
+                return;
+            }
+            
+            document.getElementById('reasoningResult').textContent = '推理中...';
+            
+            const result = await makeRequest('/reasoning/schema-aware', 'POST', {
+                question: question
+            });
+            
+            if (result.success) {
+                document.getElementById('reasoningResult').textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                document.getElementById('reasoningResult').textContent = `错误: ${result.error || '推理失败'}`;
+            }
+        };
+        
+        const collaborativeQuery = async () => {
+            const query = document.getElementById('agentQuery').value;
+            
+            if (!query.trim()) {
+                alert('请输入协作查询');
+                return;
+            }
+            
+            document.getElementById('agentResult').textContent = '协作查询中...';
+            
+            const result = await makeRequest('/agents/collaborative-query', 'POST', {
+                query: query,
+                context: {
+                    maxDepth: 3,
+                    includeIndirect: true
+                }
+            });
+            
+            if (result.success) {
+                document.getElementById('agentResult').textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                document.getElementById('agentResult').textContent = `错误: ${result.error || '协作查询失败'}`;
+            }
+        };
+        
+        const getSchema = async () => {
+            document.getElementById('schemaResult').textContent = '获取 Schema 中...';
+            
+            const result = await makeRequest('/schema');
+            
+            if (result.success) {
+                document.getElementById('schemaResult').textContent = JSON.stringify(result.data, null, 2);
+            } else {
+                document.getElementById('schemaResult').textContent = `错误: ${result.error || '获取 Schema 失败'}`;
+            }
+        };
+        
+        // 页面加载时自动检查服务状态
+        window.onload = () => {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>

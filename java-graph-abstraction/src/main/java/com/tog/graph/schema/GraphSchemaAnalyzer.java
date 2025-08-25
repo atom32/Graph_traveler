@@ -109,13 +109,13 @@ public class GraphSchemaAnalyzer {
             try {
                 logger.debug("Trying db.labels()...");
                 labelResults = graphDatabase.executeQuery(
-                    "CALL db.labels() YIELD label RETURN label", new HashMap<>());
+                    "CALL db.labels() YIELD label RETURN label LIMIT 50", new HashMap<>());
                 logger.debug("Found {} labels using db.labels()", labelResults.size());
             } catch (Exception e) {
                 // 如果db.labels()不可用，使用备用方法
                 logger.debug("db.labels() not available, using fallback method");
                 labelResults = graphDatabase.executeQuery(
-                    "MATCH (n) RETURN DISTINCT labels(n) as labelList", new HashMap<>());
+                    "MATCH (n) RETURN DISTINCT labels(n) as labelList LIMIT 50", new HashMap<>());
                 // 需要处理labelList格式
                 List<Map<String, Object>> processedResults = new ArrayList<>();
                 for (Map<String, Object> result : labelResults) {
@@ -434,14 +434,14 @@ public class GraphSchemaAnalyzer {
             try {
                 logger.debug("Trying db.relationshipTypes()...");
                 typeResults = graphDatabase.executeQuery(
-                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType", 
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType LIMIT 50", 
                     new HashMap<>());
                 logger.debug("Found {} relationship types using db.relationshipTypes()", typeResults.size());
             } catch (Exception e) {
                 // 如果db.relationshipTypes()不可用，使用备用方法
                 logger.debug("db.relationshipTypes() not available, using fallback method");
                 typeResults = graphDatabase.executeQuery(
-                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType", 
+                    "MATCH ()-[r]->() RETURN DISTINCT type(r) as relationshipType LIMIT 50", 
                     new HashMap<>());
                 logger.debug("Found {} relationship types using fallback method", typeResults.size());
             }
@@ -540,50 +540,37 @@ public class GraphSchemaAnalyzer {
      * 分析图的统计信息
      */
     private void analyzeGraphStatistics(GraphSchema schema) {
+        long totalNodes = 0;
+        logger.debug("Analyzing graph statistics...");
+        // 节点统计
         try {
-            logger.debug("Analyzing graph statistics...");
-            
-            // 直接用Cypher查询全图节点数，保证统计准确
-            try {
-                List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
-                    "MATCH (n) RETURN count(n) as totalNodes LIMIT 1", new HashMap<>());
-                long totalNodes = 0;
-                if (!nodeCountResults.isEmpty()) {
-                    totalNodes = ((Number) nodeCountResults.get(0).get("totalNodes")).longValue();
-                }
-                schema.setTotalNodes(totalNodes);
-                logger.debug("Total nodes (direct count): {}", totalNodes);
-            } catch (Exception e) {
-                logger.debug("Failed to get total node count", e);
-                schema.setTotalNodes(0);
+            List<Map<String, Object>> nodeCountResults = graphDatabase.executeQuery(
+                "MATCH (n) RETURN count(n) as totalNodes LIMIT 1", new HashMap<>());
+            if (!nodeCountResults.isEmpty()) {
+                totalNodes = ((Number) nodeCountResults.get(0).get("totalNodes")).longValue();
             }
-            
-            // 简化关系统计 - 只做快速估算
-            try {
-                List<Map<String, Object>> relCountResults = graphDatabase.executeQuery(
-                    "MATCH ()-[r]->() RETURN count(r) as totalRelationships LIMIT 1", new HashMap<>());
-                
-                if (!relCountResults.isEmpty()) {
-                    long totalRels = ((Number) relCountResults.get(0).get("totalRelationships")).longValue();
-                    schema.setTotalRelationships(totalRels);
-                    logger.debug("Total relationships: {}", totalRels);
-                    
-                    // 计算平均度数
-                    if (totalNodes > 0) {
-                        double avgDegree = (double) (totalRels * 2) / totalNodes;
-                        schema.setAverageDegree(avgDegree);
-                        logger.debug("Average degree: {}", avgDegree);
-                    }
-                }
-            } catch (Exception e) {
-                logger.debug("Failed to get relationship statistics", e);
-                schema.setTotalRelationships(0);
-                schema.setAverageDegree(0.0);
-            }
-            
+            schema.setTotalNodes(totalNodes);
+            logger.debug("Total nodes (direct count): {}", totalNodes);
         } catch (Exception e) {
-            logger.warn("Failed to analyze graph statistics", e);
+            logger.debug("Failed to get total node count", e);
             schema.setTotalNodes(0);
+        }
+        // 关系统计
+        try {
+            List<Map<String, Object>> relCountResults = graphDatabase.executeQuery(
+                "MATCH ()-[r]->() RETURN count(r) as totalRelationships LIMIT 1", new HashMap<>());
+            if (!relCountResults.isEmpty()) {
+                long totalRels = ((Number) relCountResults.get(0).get("totalRelationships")).longValue();
+                schema.setTotalRelationships(totalRels);
+                logger.debug("Total relationships: {}", totalRels);
+                if (totalNodes > 0) {
+                    double avgDegree = (double) (totalRels * 2) / totalNodes;
+                    schema.setAverageDegree(avgDegree);
+                    logger.debug("Average degree: {}", avgDegree);
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to get relationship statistics", e);
             schema.setTotalRelationships(0);
             schema.setAverageDegree(0.0);
         }

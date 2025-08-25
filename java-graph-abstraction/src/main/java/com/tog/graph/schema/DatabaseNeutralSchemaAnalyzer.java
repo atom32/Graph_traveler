@@ -12,6 +12,13 @@ import java.util.stream.Collectors;
  * 完全基于GraphDatabase接口的抽象方法，不包含任何数据库特定代码
  */
 public class DatabaseNeutralSchemaAnalyzer {
+    /**
+     * 支持外部注入已分析好的 schema，避免重复分析。
+     */
+    public void setExternalSchema(GraphSchema externalSchema) {
+        this.cachedSchema = externalSchema;
+        this.lastAnalysisTime = System.currentTimeMillis();
+    }
     
     private static final Logger logger = LoggerFactory.getLogger(DatabaseNeutralSchemaAnalyzer.class);
     
@@ -28,41 +35,34 @@ public class DatabaseNeutralSchemaAnalyzer {
      * 分析图数据库的Schema - 完全数据库中立
      */
     public GraphSchema analyzeSchema() {
-        // 检查缓存
-        if (cachedSchema != null && 
-            (System.currentTimeMillis() - lastAnalysisTime) < cacheValidityMs) {
+        // 支持外部注入 schema，或缓存复用，避免重复分析
+        if (cachedSchema != null && (System.currentTimeMillis() - lastAnalysisTime) < cacheValidityMs) {
             logger.debug("Using cached schema analysis");
             return cachedSchema;
         }
-        
+
         logger.info("Analyzing graph database schema using database-neutral methods...");
-        
+
         try {
-            GraphSchema schema = new GraphSchema();
-            
-            // 1. 使用抽象接口分析节点类型
-            analyzeNodeTypesNeutral(schema);
-            
-            // 2. 使用抽象接口分析关系类型
-            analyzeRelationshipTypesNeutral(schema);
-            
-            // 3. 使用抽象接口分析统计信息
-            analyzeGraphStatisticsNeutral(schema);
-            
-            // 4. 构建搜索策略建议
-            buildSearchStrategiesNeutral(schema);
-            
-            // 5. 初始化智能抽取配置
-            initializeIntelligentExtractionConfig(schema);
-            
+            GraphSchema schema = (cachedSchema != null) ? cachedSchema : new GraphSchema();
+
+            // 仅在无缓存或外部 schema 时才分析
+            if (schema.getNodeTypes().isEmpty() || schema.getRelationshipTypes().isEmpty()) {
+                analyzeNodeTypesNeutral(schema);
+                analyzeRelationshipTypesNeutral(schema);
+                analyzeGraphStatisticsNeutral(schema);
+                buildSearchStrategiesNeutral(schema);
+                initializeIntelligentExtractionConfig(schema);
+            }
+
             cachedSchema = schema;
             lastAnalysisTime = System.currentTimeMillis();
-            
+
             logger.info("Database-neutral schema analysis completed: {} node types, {} relationship types", 
                        schema.getNodeTypes().size(), schema.getRelationshipTypes().size());
-            
+
             return schema;
-            
+
         } catch (Exception e) {
             logger.error("Failed to analyze graph schema", e);
             return createFallbackSchema();

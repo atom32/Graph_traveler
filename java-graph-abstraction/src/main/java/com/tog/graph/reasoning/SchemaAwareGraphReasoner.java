@@ -99,13 +99,24 @@ public class SchemaAwareGraphReasoner {
     }
     
     /**
-     * 获取图Schema - 使用完整的Schema分析
+     * 获取图Schema - 优先使用已缓存的schema，避免重复分析
      */
     private GraphSchema getGraphSchema() {
         try {
-            logger.debug("Analyzing graph schema using DatabaseNeutralSchemaAnalyzer...");
+            // 优先从AdvancedGraphSearchEngine获取已缓存的schema
+            if (searchEngine instanceof AdvancedGraphSearchEngine) {
+                logger.debug("Getting cached schema from AdvancedGraphSearchEngine...");
+                GraphSchema cachedSchema = ((AdvancedGraphSearchEngine) searchEngine).getSchema();
+                if (cachedSchema != null) {
+                    logger.debug("Using cached schema: {} node types, {} relationship types", 
+                               cachedSchema.getNodeTypes().size(), 
+                               cachedSchema.getRelationshipTypes().size());
+                    return cachedSchema;
+                }
+            }
             
-            // 使用DatabaseNeutralSchemaAnalyzer进行完整的Schema分析
+            // 如果没有缓存的schema，才进行分析
+            logger.debug("No cached schema available, analyzing using DatabaseNeutralSchemaAnalyzer...");
             GraphSchema analyzedSchema = schemaAnalyzer.analyzeSchema();
             
             if (analyzedSchema != null) {
@@ -119,27 +130,11 @@ public class SchemaAwareGraphReasoner {
                 return analyzedSchema;
             }
             
-            // Fallback: 尝试从AdvancedGraphSearchEngine获取
-            if (searchEngine instanceof AdvancedGraphSearchEngine) {
-                logger.debug("Falling back to AdvancedGraphSearchEngine schema");
-                return ((AdvancedGraphSearchEngine) searchEngine).getSchema();
-            }
-            
             logger.warn("No schema available from any source");
             return null;
             
         } catch (Exception e) {
-            logger.error("Failed to analyze graph schema", e);
-            
-            // 最后的fallback
-            if (searchEngine instanceof AdvancedGraphSearchEngine) {
-                try {
-                    return ((AdvancedGraphSearchEngine) searchEngine).getSchema();
-                } catch (Exception fallbackError) {
-                    logger.error("Fallback schema retrieval also failed", fallbackError);
-                }
-            }
-            
+            logger.error("Failed to get graph schema", e);
             return null;
         }
     }

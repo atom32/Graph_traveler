@@ -1,0 +1,50 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: graph-traveler-api
+  
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+logging:
+  level:
+    com.tog.graph: INFO
+    org.springframework: WARN
+    org.neo4j: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/graph-traveler-api.log
+
+# Graph Traveler 特定配置
+graph:
+  database:
+    type: neo4j
+    neo4j:
+      uri: bolt://localhost:7687
+      username: neo4j
+      password: password
+  
+  search:
+    engine: neo4j
+    
+  reasoning:
+    llm:
+      provider: openai
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-3.5-turbo
+      max-tokens: 1000
+      temperature: 0.7

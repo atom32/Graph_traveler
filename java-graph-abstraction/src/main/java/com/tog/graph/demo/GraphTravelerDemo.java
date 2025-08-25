@@ -30,8 +30,6 @@ public class GraphTravelerDemo {
         this.scanner = new Scanner(System.in, "UTF-8");
         this.agentCoordinator = new MultiAgentCoordinator();
         
-        // 初始化智能体系统
-        initializeAgents();
     }
     
     private void initializeAgents() {
@@ -39,18 +37,18 @@ public class GraphTravelerDemo {
             // 获取数据库和搜索引擎实例
             GraphDatabase database = reasoningService.getGraphDatabase();
             var searchEngine = reasoningService.getSearchEngine();
-            
+
             // 注册专业智能体
             agentCoordinator.registerAgent(new EntitySearchAgent(searchEngine));
             agentCoordinator.registerAgent(new RelationshipAnalysisAgent(database));
-            
+
             // 注册协调智能体 - 需要LLM服务
             // 暂时注释掉，因为需要从reasoningService获取LLM服务
             // agentCoordinator.registerAgent(new ReasoningCoordinatorAgent(llmService, agentCoordinator));
-            
+
             // 初始化所有智能体
             agentCoordinator.initializeAll();
-            
+
             logger.info("Multi-agent system initialized successfully");
         } catch (Exception e) {
             logger.error("Failed to initialize multi-agent system", e);
@@ -73,6 +71,8 @@ public class GraphTravelerDemo {
         
         try {
             initializeService();
+            // 初始化智能体系统
+            initializeAgents();
             runMainLoop();
         } catch (ServiceException e) {
             System.err.println("❌ 服务运行出错: " + e.getMessage());
@@ -404,9 +404,14 @@ public class GraphTravelerDemo {
     private void performRelationshipQuery(String question) {
         System.out.println("🎯 检测到关系查询，启动专门的关系分析流程...");
         
+        // 收集所有分析结果用于最终结论生成
+        StringBuilder contextBuilder = new StringBuilder();
+        contextBuilder.append("问题: ").append(question).append("\n\n");
+        
         // 1. 提取实体
         String[] entities = extractEntitiesFromQuestion(question);
         System.out.println("🔍 识别到实体: " + String.join(", ", entities));
+        contextBuilder.append("识别的实体: ").append(String.join(", ", entities)).append("\n\n");
         
         Map<String, List<ScoredEntity>> foundEntities = new HashMap<>();
         
@@ -423,20 +428,25 @@ public class GraphTravelerDemo {
         
         // 3. 收集搜索结果
         List<String> entityIds = new ArrayList<>();
+        contextBuilder.append("实体搜索结果:\n");
         for (Map.Entry<String, AgentResult> entry : searchResults.entrySet()) {
             if (entry.getValue().isSuccess() && entry.getValue().getMetadata().containsKey("entities")) {
                 @SuppressWarnings("unchecked")
                 List<ScoredEntity> entities_list = (List<ScoredEntity>) entry.getValue().getMetadata().get("entities");
                 if (!entities_list.isEmpty()) {
                     entityIds.add(entities_list.get(0).getEntity().getId());
-                    System.out.println("✅ 找到实体: " + entities_list.get(0).getEntity().getName());
+                    String entityName = entities_list.get(0).getEntity().getName();
+                    System.out.println("✅ 找到实体: " + entityName);
+                    contextBuilder.append("- ").append(entityName).append(" (ID: ").append(entities_list.get(0).getEntity().getId()).append(")\n");
                 }
             }
         }
+        contextBuilder.append("\n");
         
         // 4. 分析实体间关系
         if (entityIds.size() >= 1) {  // 降低要求，只要找到1个实体就进行分析
             System.out.println("🕸️ RelationshipAnalysisAgent 分析实体关系中...");
+            contextBuilder.append("关系分析结果:\n");
             
             for (String entityId : entityIds) {
                 AgentResult relationResult = agentCoordinator.executeTask(
@@ -447,6 +457,7 @@ public class GraphTravelerDemo {
                 if (relationResult.isSuccess()) {
                     System.out.println("📊 关系分析结果:");
                     System.out.println(relationResult.getResult());
+                    contextBuilder.append(relationResult.getResult()).append("\n");
                 }
             }
             
@@ -460,6 +471,7 @@ public class GraphTravelerDemo {
                 if (pathResult.isSuccess()) {
                     System.out.println("🛤️ 连接路径分析:");
                     System.out.println(pathResult.getResult());
+                    contextBuilder.append("连接路径分析:\n").append(pathResult.getResult()).append("\n");
                 }
             }
         }
@@ -475,6 +487,7 @@ public class GraphTravelerDemo {
             if (directResult.isSuccess()) {
                 System.out.println("🔍 直接搜索结果:");
                 System.out.println(directResult.getResult());
+                contextBuilder.append("直接搜索结果:\n").append(directResult.getResult()).append("\n");
                 
                 // 对找到的实体进行关系分析
                 if (directResult.getMetadata().containsKey("entities")) {
@@ -490,6 +503,8 @@ public class GraphTravelerDemo {
                         if (relationResult.isSuccess()) {
                             System.out.println("📊 " + entity.getEntity().getName() + " 的关系分析:");
                             System.out.println(relationResult.getResult());
+                            contextBuilder.append(entity.getEntity().getName()).append(" 的关系分析:\n")
+                                          .append(relationResult.getResult()).append("\n");
                         }
                     }
                 }
@@ -498,7 +513,7 @@ public class GraphTravelerDemo {
         
         // 6. 综合分析和结论生成
         System.out.println("\n🧠 正在综合分析所有发现...");
-        generateCollaborativeConclusion(question);
+        generateCollaborativeConclusion(question, contextBuilder.toString());
         
         System.out.println("\n🎉 智能协作推理完成！");
     }
@@ -566,20 +581,17 @@ public class GraphTravelerDemo {
         return entities.toArray(new String[0]);
     }
     
-    private void generateCollaborativeConclusion(String question) {
+    private void generateCollaborativeConclusion(String question, String context) {
         System.out.println("💡 智能结论生成:");
         System.out.println("─────────────────");
         
-        // 使用LLM生成智能结论 - 但我们没有直接访问LLM服务
-        // 作为Demo，我们使用SchemaAwareReasoner来生成结论
         try {
             System.out.println("🤖 启动结论生成智能体...");
             
-            // 创建一个简化的问题让Schema推理器生成结论
-            String conclusionPrompt = "基于以上多智能体分析结果，请总结：" + question;
+            // 使用reasonWithContext方法，传入多智能体分析的上下文
+            String conclusionPrompt = "基于以上多智能体分析结果，请总结回答：" + question;
             
-            //ReasoningResult conclusionResult = reasoningService.performSchemaAwareReasoning(conclusionPrompt);
-            //将结论结果传递给智能体进行处理，而不是使用schema再搜一次
+            // 使用reasonWithContext而不是performSchemaAwareReasoning，避免重复的schema分析
             ReasoningResult conclusionResult = reasoningService.reasonWithContext(conclusionPrompt, context);
             
             if (conclusionResult != null && conclusionResult.getAnswer() != null) {

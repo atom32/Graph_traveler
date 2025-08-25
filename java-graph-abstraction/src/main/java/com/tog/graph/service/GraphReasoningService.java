@@ -114,6 +114,24 @@ public class GraphReasoningService {
     }
     
     /**
+     * 基于上下文进行推理（不进行复杂查询，避免重复schema分析）
+     */
+    public ReasoningResult reasonWithContext(String question, String context) throws ServiceException {
+        try {
+            if (question == null || question.trim().isEmpty()) {
+                throw new ServiceException("Reasoning question cannot be empty");
+            }
+            
+            logger.debug("Performing context-based reasoning for: {}", question);
+            return schemaAwareReasoner.reasonWithContext(question.trim(), context);
+            
+        } catch (Exception e) {
+            logger.error("Context-based reasoning failed for question: {}", question, e);
+            throw new ServiceException("Context-based reasoning failed", e);
+        }
+    }
+    
+    /**
      * 获取数据库Schema信息
      */
     public SchemaInfo getSchemaInfo() throws ServiceException {

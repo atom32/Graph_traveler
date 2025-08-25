@@ -244,7 +244,8 @@ public class EntitySearchAgent implements Agent {
     @Override
     public void initialize() {
         logger.info("Initializing EntitySearchAgent...");
-        searchEngine.initialize();
+        // Note: SearchEngine is already initialized when passed to this agent
+        // No need to initialize it again to avoid duplicate schema analysis
         status = AgentStatus.READY;
         logger.info("EntitySearchAgent initialized successfully");
     }
