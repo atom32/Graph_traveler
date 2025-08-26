@@ -136,6 +136,17 @@
             <div class="section">
                 <h3>🤖 多智能体协作</h3>
                 <textarea id="agentQuery" placeholder="输入协作查询，如：分析张机与王叔和的关系" rows="3">分析张机与王叔和的关系</textarea>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
+                    <input type="number" id="agentLimit" placeholder="结果数量限制" value="20" min="1" max="50">
+                    <input type="number" id="agentSearchLimit" placeholder="搜索限制" value="15" min="1" max="30">
+                    <input type="number" id="agentMaxDepth" placeholder="最大深度" value="3" min="1" max="5">
+                    <select id="agentIncludeIndirect">
+                        <option value="true">包含间接关系</option>
+                        <option value="false">仅直接关系</option>
+                    </select>
+                </div>
+                
                 <button onclick="collaborativeQuery()">执行协作查询</button>
                 <div id="agentResult" class="result"></div>
             </div>
@@ -262,13 +273,21 @@
                 return;
             }
             
+            // 获取用户配置的参数
+            const limit = parseInt(document.getElementById('agentLimit').value) || 20;
+            const searchLimit = parseInt(document.getElementById('agentSearchLimit').value) || 15;
+            const maxDepth = parseInt(document.getElementById('agentMaxDepth').value) || 3;
+            const includeIndirect = document.getElementById('agentIncludeIndirect').value === 'true';
+            
             document.getElementById('agentResult').textContent = '协作查询中...';
             
             const result = await makeRequest('/agents/collaborative-query', 'POST', {
                 query: query,
                 context: {
-                    maxDepth: 3,
-                    includeIndirect: true
+                    limit: limit,
+                    searchLimit: searchLimit,
+                    maxDepth: maxDepth,
+                    includeIndirect: includeIndirect
                 }
             });
             

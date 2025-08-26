@@ -419,7 +419,7 @@ public class GraphTravelerDemo {
         Map<String, MultiAgentCoordinator.TaskRequest> searchTasks = new HashMap<>();
         for (int i = 0; i < entities.length; i++) {
             searchTasks.put("entity_" + i, new MultiAgentCoordinator.TaskRequest(
-                "entity_search", entities[i], Map.of("limit", 3)
+                "entity_search", entities[i], Map.of("limit", 15) // 增加搜索结果数量
             ));
         }
         
@@ -481,7 +481,7 @@ public class GraphTravelerDemo {
             System.out.println("⚠️ 只找到部分实体，尝试直接搜索问题...");
             
             AgentResult directResult = agentCoordinator.executeTask(
-                "entity_search", question, Map.of("limit", 10)
+                "entity_search", question, Map.of("limit", 20) // 增加直接搜索结果数量
             );
             
             if (directResult.isSuccess()) {
@@ -522,7 +522,7 @@ public class GraphTravelerDemo {
         System.out.println("🎯 检测到实体查询，启动实体分析流程...");
         
         AgentResult searchResult = agentCoordinator.executeTask(
-            "entity_search", question, Map.of("limit", 5)
+            "entity_search", question, Map.of("limit", 15) // 增加实体查询结果数量
         );
         
         if (searchResult.isSuccess()) {
@@ -556,7 +556,7 @@ public class GraphTravelerDemo {
         
         // 先搜索相关实体
         AgentResult searchResult = agentCoordinator.executeTask(
-            "entity_search", question, Map.of("limit", 10)
+            "entity_search", question, Map.of("limit", 20) // 增加通用查询结果数量
         );
         
         if (searchResult.isSuccess()) {

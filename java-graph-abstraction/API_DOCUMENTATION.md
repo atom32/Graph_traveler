@@ -130,21 +130,31 @@ java -jar target/graph-abstraction-1.0.0.jar
 {
   "query": "分析张机与王叔和的关系",
   "context": {
+    "limit": 20,
+    "searchLimit": 15,
     "maxDepth": 3,
     "includeIndirect": true
   }
 }
 ```
 
+**上下文参数说明：**
+- `limit`: 通用搜索结果数量限制（默认：20）
+- `searchLimit`: 实体搜索结果数量限制（默认：15）
+- `maxDepth`: 关系分析最大深度（默认：3）
+- `includeIndirect`: 是否包含间接关系（默认：true）
+
 **响应示例：**
 ```json
 {
   "success": true,
-  "result": "通过多智能体分析发现：张机（张仲景）与王叔和都是著名的中医学家...",
+  "result": "=== 张机 的关系分析 ===\n张机（张仲景）是东汉末年著名医学家...\n\n=== 王叔和 的关系分析 ===\n王叔和是西晋时期的医学家...",
   "metadata": {
-    "agentsUsed": ["EntitySearchAgent", "RelationshipAnalysisAgent"],
-    "entitiesFound": 2,
-    "relationshipsAnalyzed": 5
+    "analyzed_entities_count": 5,
+    "total_found_entities": 15,
+    "张机_relationships": 8,
+    "王叔和_relationships": 6,
+    "agentsUsed": ["EntitySearchAgent", "RelationshipAnalysisAgent"]
   },
   "executionTime": 3200
 }

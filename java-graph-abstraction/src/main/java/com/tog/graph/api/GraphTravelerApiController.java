@@ -202,6 +202,20 @@ public class GraphTravelerApiController {
             
             Map<String, Object> context = request.getContext() != null ? request.getContext() : new HashMap<>();
             
+            // 设置默认的更大限制值，如果用户没有指定的话
+            if (!context.containsKey("limit")) {
+                context.put("limit", 20);
+            }
+            if (!context.containsKey("searchLimit")) {
+                context.put("searchLimit", 15);
+            }
+            if (!context.containsKey("maxDepth")) {
+                context.put("maxDepth", 3);
+            }
+            if (!context.containsKey("includeIndirect")) {
+                context.put("includeIndirect", true);
+            }
+            
             // 根据查询类型选择不同的处理策略
             AgentResult result;
             if (request.getQuery().contains("关系") && (request.getQuery().contains("和") || request.getQuery().contains("与"))) {
@@ -309,13 +323,17 @@ public class GraphTravelerApiController {
     }
     
     private AgentResult performRelationshipQuery(String query, Map<String, Object> context) {
-        // 简化的关系查询逻辑
+        // 优化的关系查询逻辑，提供更丰富的结果
         String[] entities = extractEntitiesFromQuestion(query);
         
+        // 从上下文中获取 limit，默认为更大的值
+        int searchLimit = context.containsKey("searchLimit") ? 
+            (Integer) context.get("searchLimit") : 15;
+        
         if (entities.length >= 1) {
-            // 搜索第一个实体
+            // 搜索第一个实体，使用更大的 limit
             AgentResult searchResult = agentCoordinator.executeTask(
-                "entity_search", entities[0], Map.of("limit", 3)
+                "entity_search", entities[0], Map.of("limit", searchLimit)
             );
             
             if (searchResult.isSuccess() && searchResult.getMetadata().containsKey("entities")) {
@@ -323,11 +341,36 @@ public class GraphTravelerApiController {
                 List<ScoredEntity> foundEntities = (List<ScoredEntity>) searchResult.getMetadata().get("entities");
                 
                 if (!foundEntities.isEmpty()) {
-                    String entityId = foundEntities.get(0).getEntity().getId();
-                    return agentCoordinator.executeTask(
-                        "relationship_analysis", "分析实体关系", 
-                        Map.of("entity_id", entityId)
-                    );
+                    // 分析多个候选实体的关系，而不只是第一个
+                    StringBuilder relationshipAnalysis = new StringBuilder();
+                    Map<String, Object> combinedMetadata = new HashMap<>();
+                    
+                    int analyzeCount = Math.min(foundEntities.size(), 5); // 分析前5个最相关的实体
+                    for (int i = 0; i < analyzeCount; i++) {
+                        String entityId = foundEntities.get(i).getEntity().getId();
+                        String entityName = foundEntities.get(i).getEntity().getName();
+                        
+                        AgentResult relationResult = agentCoordinator.executeTask(
+                            "relationship_analysis", "分析实体关系", 
+                            Map.of("entity_id", entityId)
+                        );
+                        
+                        if (relationResult.isSuccess()) {
+                            relationshipAnalysis.append("=== ").append(entityName).append(" 的关系分析 ===\n");
+                            relationshipAnalysis.append(relationResult.getResult()).append("\n\n");
+                            
+                            // 合并元数据
+                            relationResult.getMetadata().forEach((key, value) -> {
+                                String prefixedKey = entityName + "_" + key;
+                                combinedMetadata.put(prefixedKey, value);
+                            });
+                        }
+                    }
+                    
+                    combinedMetadata.put("analyzed_entities_count", analyzeCount);
+                    combinedMetadata.put("total_found_entities", foundEntities.size());
+                    
+                    return new AgentResult(true, relationshipAnalysis.toString(), null, combinedMetadata, 0);
                 }
             }
         }
@@ -336,11 +379,15 @@ public class GraphTravelerApiController {
     }
     
     private AgentResult performEntityQuery(String query, Map<String, Object> context) {
-        return agentCoordinator.executeTask("entity_search", query, Map.of("limit", 5));
+        // 从上下文中获取 limit，默认为更大的值
+        int limit = context.containsKey("limit") ? (Integer) context.get("limit") : 15;
+        return agentCoordinator.executeTask("entity_search", query, Map.of("limit", limit));
     }
     
     private AgentResult performGeneralQuery(String query, Map<String, Object> context) {
-        return agentCoordinator.executeTask("entity_search", query, Map.of("limit", 10));
+        // 从上下文中获取 limit，默认为更大的值
+        int limit = context.containsKey("limit") ? (Integer) context.get("limit") : 20;
+        return agentCoordinator.executeTask("entity_search", query, Map.of("limit", limit));
     }
     
     private String[] extractEntitiesFromQuestion(String question) {
