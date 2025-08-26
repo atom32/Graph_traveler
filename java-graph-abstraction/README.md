@@ -6,7 +6,9 @@
 
 > 📖 **新用户请先查看：[快速启动指南](QUICK_START.md)**
 
-### 方式一：REST API 服务 (推荐)
+现在支持两种运行方式，你可以根据需要选择：
+
+### 🌐 方式一：REST API 服务 (推荐用于集成)
 
 ```bash
 # Windows 用户
@@ -26,36 +28,43 @@ mvn spring-boot:run
 - 📖 完整 API 文档: 查看 `API_DOCUMENTATION.md`
 - 🧪 测试客户端: 打开 `test-api.html` 文件
 
-### 方式二：命令行演示程序
+### 🖥️ 方式二：命令行演示程序 (推荐用于学习和测试)
 
 ```bash
-# 赋予执行权限
-chmod +x run.sh
+# Windows 用户
+run-demo.bat
 
-# 运行主程序
+# Linux/Mac 用户
+chmod +x run-demo.sh
+./run-demo.sh
+
+# 或使用原有脚本
+chmod +x run.sh
 ./run.sh
 
+# 或直接使用 Maven
+mvn exec:java
+```
+
+### 📊 数据初始化
+
+```bash
 # 初始化测试数据
 ./run.sh init
 
-# 仅编译项目
-./run.sh compile
-
-# 查看帮助
-./run.sh help
+# 或使用 Maven
+mvn exec:java -Dexec.mainClass="com.tog.graph.demo.DataInitializer"
 ```
 
-### 或者使用Maven直接运行
+### 🔧 其他 Maven 命令
 
 ```bash
-# 运行 API 服务
-mvn spring-boot:run
+# 仅编译项目
+mvn clean compile
 
-# 运行命令行演示
+# 运行特定主类
 mvn exec:java -Dexec.mainClass="com.tog.graph.demo.GraphTravelerDemo"
-
-# 初始化数据
-mvn exec:java -Dexec.mainClass="com.tog.graph.demo.DataInitializer"
+mvn exec:java -Dexec.mainClass="com.tog.graph.GraphTravelerApiApplication"
 ```
 
 ## 📋 功能特性

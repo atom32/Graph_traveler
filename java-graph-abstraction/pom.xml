@@ -125,7 +125,8 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.tog.graph.GraphTravelerApiApplication</mainClass>
+                    <!-- 默认运行命令行演示程序 -->
+                    <mainClass>com.tog.graph.demo.GraphTravelerDemo</mainClass>
                 </configuration>
             </plugin>
         </plugins>

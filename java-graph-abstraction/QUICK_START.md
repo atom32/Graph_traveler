@@ -1,4 +1,4 @@
-# 🚀 Graph Traveler API 快速启动指南
+# 🚀 Graph Traveler 快速启动指南
 
 ## 前提条件
 
@@ -6,9 +6,11 @@
 - Maven 3.6 或更高版本
 - Neo4j 数据库（可选，用于完整功能）
 
-## 启动步骤
+## 选择运行方式
 
-### 1. 启动 API 服务
+Graph Traveler 现在支持两种运行方式：
+
+### 🌐 方式一：REST API 服务（推荐用于集成开发）
 
 **Windows 用户：**
 ```cmd
@@ -26,9 +28,29 @@ chmod +x start-api.sh
 mvn spring-boot:run
 ```
 
-### 2. 验证服务
+### 🖥️ 方式二：命令行演示程序（推荐用于学习和测试）
 
-打开浏览器访问：http://localhost:8080/api/v1/graph/health
+**Windows 用户：**
+```cmd
+run-demo.bat
+```
+
+**Linux/Mac 用户：**
+```bash
+chmod +x run-demo.sh
+./run-demo.sh
+```
+
+**或者使用 Maven：**
+```bash
+mvn exec:java
+```
+
+## API 服务验证步骤
+
+### API 服务验证
+
+如果你选择了 API 服务方式，打开浏览器访问：http://localhost:8080/api/v1/graph/health
 
 如果看到类似以下的 JSON 响应，说明服务启动成功：
 ```json
@@ -41,7 +63,14 @@ mvn spring-boot:run
 }
 ```
 
-### 3. 测试 API
+### 命令行演示验证
+
+如果你选择了命令行方式，程序会显示一个交互式菜单，你可以：
+1. 选择不同的功能进行测试
+2. 输入查询问题
+3. 查看推理结果
+
+### API 测试方式
 
 #### 方式一：使用测试客户端
 打开 `test-api.html` 文件，在浏览器中进行交互式测试。
