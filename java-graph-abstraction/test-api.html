@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="fav.ico" type="image/x-icon">
+
     <title>Graph Traveler API 测试客户端</title>
     <style>
         body {
@@ -118,7 +120,7 @@
         <div class="grid">
             <div class="section">
                 <h3>🔍 实体搜索</h3>
-                <input type="text" id="searchQuery" placeholder="输入搜索关键词，如：张仲景" value="张仲景">
+                <input type="text" id="searchQuery" placeholder="输入搜索关键词，如：汤液经法" value="汤液经法">
                 <input type="number" id="searchLimit" placeholder="结果数量限制" value="5" min="1" max="20">
                 <button onclick="searchEntities()">搜索实体</button>
                 <div id="searchResult" class="result"></div>
@@ -126,7 +128,7 @@
             
             <div class="section">
                 <h3>🧠 智能推理查询</h3>
-                <textarea id="reasoningQuestion" placeholder="输入推理问题，如：张仲景与伤寒论的关系？" rows="3">张仲景与伤寒论的关系？</textarea>
+                <textarea id="reasoningQuestion" placeholder="输入推理问题，如：汤液经法和华元化和范将军都有什么关系？" rows="3">汤液经法和华元化和范将军都有什么关系？</textarea>
                 <button onclick="performReasoning()">执行智能推理</button>
                 <div id="reasoningResult" class="result"></div>
             </div>
@@ -135,7 +137,7 @@
         <div class="grid">
             <div class="section">
                 <h3>🤖 多智能体协作</h3>
-                <textarea id="agentQuery" placeholder="输入协作查询，如：分析张机与王叔和的关系" rows="3">分析张机与王叔和的关系</textarea>
+                <textarea id="agentQuery" placeholder="输入协作查询，如：汤液经法和华元化和范将军都有什么关系？" rows="3">汤液经法和华元化和范将军都有什么关系？</textarea>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
                     <input type="number" id="agentLimit" placeholder="结果数量限制" value="20" min="1" max="50">
@@ -152,7 +154,7 @@
             </div>
             
             <div class="section">
-                <h3>📊 Schema 信息</h3>
+                <h3>📊 Schema 信息 LIMIT 20</h3>
                 <button onclick="getSchema()">获取数据库 Schema</button>
                 <div id="schemaResult" class="result"></div>
             </div>
